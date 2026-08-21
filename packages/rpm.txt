@@ -1,0 +1,10 @@
+# Pacotes adicionais instalados após o primeiro boot.
+# Um pacote por linha; comentários e linhas vazias são ignorados.
+
+google-chrome-stable
+code
+nodejs
+adw-gtk3-theme
+python3-pip
+gnome-shell-extension-user-theme
+gnome-shell-extension-appindicator
