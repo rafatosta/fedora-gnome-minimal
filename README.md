@@ -2,22 +2,24 @@
 
 Projeto pessoal para instalar um Fedora GNOME tradicional, mutável e reproduzível, com apenas os componentes necessários ao uso diário.
 
-A proposta é substituir o modelo "instalar Fedora Workstation completo e depois remover coisas" por uma instalação enxuta definida em código:
+A proposta é substituir o modelo "instalar Fedora Workstation completo e depois remover coisas" por uma imagem Live enxuta, mantendo a experiência moderna de instalação do Fedora Workstation:
 
 - Fedora tradicional, administrado com `dnf`;
 - GNOME funcional, sem depender do conjunto completo do Workstation;
+- imagem **Live** própria, em vez de um Kickstart de instalação injetado em `boot.iso`;
+- **Anaconda WebUI**, como no Fedora Workstation atual;
+- armazenamento decidido pelo usuário no instalador;
+- possibilidade de `Reinstall Fedora` quando o layout existente é compatível, preservando `/home` e dados pessoais;
 - pacotes RPM essenciais definidos em arquivo;
 - aplicativos Flatpak definidos em arquivo;
 - NVIDIA via RPM Fusion com suporte a Secure Boot e assinatura automática por `akmods`;
-- serviços não utilizados desabilitados de forma defensiva;
-- mídia instalável gerada a partir de uma ISO oficial Fedora netinstall/boot com `mkksiso`;
-- `/home` tratado como dado persistente, não como parte do sistema reproduzível.
+- serviços não utilizados desabilitados de forma defensiva.
 
 ## Estrutura
 
 ```text
 kickstart/
-  fedora-gnome.ks        seleção base e instalação do Fedora
+  fedora-gnome.ks        receita usada para CONSTRUIR a imagem Live
 packages/
   rpm.txt                aplicativos/pacotes RPM adicionais
   flatpak.txt            aplicativos Flatpak
@@ -30,32 +32,60 @@ scripts/
   post-install.sh        orquestrador pós-instalação
   verify.sh              checagem rápida do ambiente
 build/
-  build-iso.sh           injeta o Kickstart em uma ISO Fedora
+  build-iso.sh           gera a imagem Live com livemedia-creator
   README.md              instruções de geração da mídia
 docs/
   NVIDIA-SECURE-BOOT.md  fluxo detalhado do driver NVIDIA e MOK
 ```
 
-## Fluxo recomendado
+## Instalação e recuperação
 
-1. Baixe uma ISO oficial Fedora Everything/Server netinstall compatível com a versão alvo.
-2. Instale `lorax` no sistema usado para gerar a mídia.
-3. Execute:
+O Kickstart deste repositório **não é executado para particionar o computador do usuário**. Ele serve apenas como receita de composição da imagem Live.
+
+Ao iniciar o pendrive, a instalação final acontece pela WebUI do Anaconda. Assim, as decisões de armazenamento permanecem interativas, incluindo os cenários oferecidos pelo instalador quando aplicáveis:
+
+- usar o disco inteiro;
+- usar espaço livre;
+- atribuir pontos de montagem manualmente;
+- **Reinstall Fedora**, quando uma instalação Fedora compatível é detectada.
+
+A opção `Reinstall Fedora` é especialmente importante para este projeto: ela permite reconstruir o sistema mantendo a home e os dados pessoais quando o layout existente atende aos critérios do Anaconda.
+
+> As diretivas `clearpart` e `part` existentes em `kickstart/fedora-gnome.ks` atuam exclusivamente no disco temporário criado durante a **construção da imagem Live** pelo `livemedia-creator`. Elas não são aplicadas ao disco do computador que receberá o Fedora.
+
+## Gerar a mídia
+
+1. Baixe uma ISO Fedora Everything/netinstall da mesma versão alvo.
+2. Instale as ferramentas de composição:
 
 ```bash
-sudo bash ./build/build-iso.sh /caminho/Fedora-netinst.iso
+sudo dnf install lorax lorax-lmc-virt
 ```
 
-4. Grave `dist/fedora-gnome-minimal.iso` em um pendrive.
-5. Durante a instalação, revise o particionamento antes de confirmar. O Kickstart deste projeto não executa `clearpart` automaticamente.
-6. Depois do primeiro boot, aplique as atualizações e reinicie antes de instalar os drivers externos:
+3. Gere a imagem:
+
+```bash
+sudo bash ./build/build-iso.sh /caminho/Fedora-Everything-netinst.iso
+```
+
+4. A saída será:
+
+```text
+dist/fedora-gnome-minimal.iso
+```
+
+5. Grave a ISO em um pendrive e inicialize normalmente.
+
+## Pós-instalação
+
+Depois da primeira inicialização do sistema instalado, aplique todas as atualizações e reinicie antes de instalar os módulos externos:
 
 ```bash
 sudo dnf upgrade --refresh -y
 sudo reboot
 ```
 
-7. Após retornar ao sistema, execute:
+Depois:
 
 ```bash
 sudo bash ./scripts/post-install.sh
