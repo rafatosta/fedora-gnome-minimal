@@ -10,6 +10,9 @@ dnf upgrade --refresh -y
 echo "== Configurando repositórios =="
 bash "$SCRIPT_DIR/setup-repositories.sh"
 
+echo "== Preparando NVIDIA e Secure Boot =="
+bash "$SCRIPT_DIR/setup-nvidia.sh"
+
 echo "== Instalando pacotes RPM =="
 bash "$SCRIPT_DIR/install-rpm-apps.sh"
 
@@ -23,4 +26,9 @@ echo "== Limpeza =="
 dnf autoremove -y || true
 flatpak uninstall --system --unused -y || true
 
-echo "Pós-instalação concluída. Reinicie o sistema quando for conveniente."
+echo
+if mokutil --sb-state 2>/dev/null | grep -qi 'SecureBoot enabled' && ! mokutil --test-key /etc/pki/akmods/certs/public_key.der >/dev/null 2>&1; then
+  echo "Pós-instalação concluída. Reinicie e conclua a inscrição da chave NVIDIA no MokManager."
+else
+  echo "Pós-instalação concluída. Reinicie o sistema quando for conveniente."
+fi
