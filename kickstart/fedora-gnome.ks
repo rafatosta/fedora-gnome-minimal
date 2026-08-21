@@ -1,26 +1,47 @@
-# Fedora GNOME enxuto e mutável
-# Destinado a mídia netinstall/boot do Fedora.
-# O armazenamento fica deliberadamente interativo para evitar apagar /home por engano.
+# Fedora GNOME Minimal - definição da IMAGEM LIVE
+#
+# IMPORTANTE: este Kickstart é usado pelo livemedia-creator para construir
+# a mídia Live. As diretivas de particionamento abaixo atuam somente no disco
+# temporário da construção da imagem; NÃO definem o particionamento do PC do
+# usuário. A instalação final permanece interativa pela WebUI do Anaconda.
 
-text
+graphical
 lang pt_BR.UTF-8
 keyboard --vckeymap=br-abnt2 --xlayouts='br'
 timezone America/Bahia --utc
 network --bootproto=dhcp --device=link --activate
 rootpw --lock
-firstboot --enable
 selinux --enforcing
 firewall --enabled
-services --enabled="NetworkManager,gdm,firewalld,bluetooth"
+shutdown
 
-# Fonte de instalação: a mídia ou repositório configurado pela ISO usada como base.
-# Não usar clearpart/autopart aqui: o particionamento deve ser confirmado no Anaconda.
+# Disco temporário usado durante a composição da imagem Live.
+zerombr
+clearpart --all --initlabel
+part / --fstype="ext4" --size=12288
 
 %packages --excludedocs
 @core
 @standard
 
-# Pilha gráfica / GNOME essencial
+# Kernel e infraestrutura necessária para mídia Live
+kernel
+kernel-modules
+kernel-modules-extra
+dracut-live
+livesys-scripts
+glibc-all-langpacks
+
+# Instalador Fedora / WebUI usada pelo Workstation
+anaconda
+anaconda-install-env-deps
+anaconda-live
+anaconda-webui
+fedora-release-workstation
+fedora-logos
+gnome-initial-setup
+
+# GNOME essencial
 gdm
 gnome-shell
 gnome-session
@@ -28,13 +49,14 @@ gnome-control-center
 gnome-settings-daemon
 gnome-keyring
 nautilus
+gnome-software
 xdg-desktop-portal
 xdg-desktop-portal-gnome
 xdg-user-dirs
 xdg-user-dirs-gtk
 polkit
 
-# Áudio, vídeo, rede e energia
+# Áudio, vídeo, rede, Bluetooth e energia
 NetworkManager
 NetworkManager-wifi
 bluez
@@ -47,7 +69,7 @@ upower
 udisks2
 firewalld
 
-# Sessão e integração desktop
+# Integração desktop
 flatpak
 fwupd
 gvfs
@@ -71,14 +93,14 @@ usbutils
 lsof
 htop
 
-# Ferramentas usadas no ambiente atual
+# Ferramentas usadas no ambiente pessoal
 nodejs
 python3-pip
 adw-gtk3-theme
 gnome-shell-extension-user-theme
 gnome-shell-extension-appindicator
 
-# Evita instalar itens explicitamente indesejados caso venham por grupos/dependências fracas
+# Evita aplicativos não utilizados
 -gnome-tour
 -gnome-boxes
 -gnome-maps
@@ -97,14 +119,27 @@ gnome-shell-extension-appindicator
 -podman-sequoia
 %end
 
-%post --erroronfail --log=/root/fedora-gnome-minimal.log
-# Mantém o boot sem espera artificial por rede.
-systemctl disable NetworkManager-wait-online.service || true
+%post --erroronfail --log=/root/fedora-gnome-minimal-live.log
+# Serviços da sessão Live.
+systemctl enable livesys.service || true
+systemctl enable livesys-late.service || true
+systemctl enable tmp.mount || true
 
-# GDM é o display manager do ambiente.
+# GDM / GNOME.
 systemctl set-default graphical.target
 systemctl enable gdm.service || true
+systemctl disable NetworkManager-wait-online.service || true
 
-# Diretório reservado para scripts/configurações locais do projeto.
+# Identifica a sessão Live como GNOME.
+if [[ -f /etc/sysconfig/livesys ]]; then
+  sed -i 's/^livesys_session=.*/livesys_session="gnome"/' /etc/sysconfig/livesys
+fi
+
+# O sistema instalado deve gerar sua própria identidade.
+rm -f /etc/machine-id
+: > /etc/machine-id
+rm -f /var/lib/systemd/random-seed
+rm -f /boot/*-rescue* || true
+
 install -d -m 0755 /usr/local/share/fedora-gnome-minimal
 %end
