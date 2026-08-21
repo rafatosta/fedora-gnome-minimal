@@ -39,7 +39,7 @@ build/
 3. Execute:
 
 ```bash
-sudo ./build/build-iso.sh /caminho/Fedora-netinst.iso
+sudo bash ./build/build-iso.sh /caminho/Fedora-netinst.iso
 ```
 
 4. Grave `dist/fedora-gnome-minimal.iso` em um pendrive.
@@ -47,7 +47,13 @@ sudo ./build/build-iso.sh /caminho/Fedora-netinst.iso
 6. Depois do primeiro boot:
 
 ```bash
-sudo ./scripts/post-install.sh
+sudo bash ./scripts/post-install.sh
+```
+
+7. Opcionalmente, valide o ambiente:
+
+```bash
+bash ./scripts/verify.sh
 ```
 
 ## Princípio do projeto
