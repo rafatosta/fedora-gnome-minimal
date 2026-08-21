@@ -8,6 +8,7 @@ A proposta é substituir o modelo "instalar Fedora Workstation completo e depois
 - GNOME funcional, sem depender do conjunto completo do Workstation;
 - pacotes RPM essenciais definidos em arquivo;
 - aplicativos Flatpak definidos em arquivo;
+- NVIDIA via RPM Fusion com suporte a Secure Boot e assinatura automática por `akmods`;
 - serviços não utilizados desabilitados de forma defensiva;
 - mídia instalável gerada a partir de uma ISO oficial Fedora netinstall/boot com `mkksiso`;
 - `/home` tratado como dado persistente, não como parte do sistema reproduzível.
@@ -22,6 +23,7 @@ packages/
   flatpak.txt            aplicativos Flatpak
 scripts/
   setup-repositories.sh  repositórios de terceiros
+  setup-nvidia.sh        RPM Fusion, NVIDIA, akmods e Secure Boot
   install-rpm-apps.sh    instalação dos RPMs adicionais
   install-flatpaks.sh    configuração do Flathub e Flatpaks
   disable-services.sh    serviços não utilizados
@@ -50,11 +52,29 @@ sudo bash ./build/build-iso.sh /caminho/Fedora-netinst.iso
 sudo bash ./scripts/post-install.sh
 ```
 
-7. Opcionalmente, valide o ambiente:
+## NVIDIA e Secure Boot
+
+O script `scripts/setup-nvidia.sh` configura os repositórios RPM Fusion Free e Nonfree e prepara o Fedora para usar o driver NVIDIA proprietário com Secure Boot.
+
+A ordem é intencional:
+
+1. instala `akmods`, `mokutil`, `openssl`, `kernel-devel` e `kernel-headers`;
+2. gera a chave local do `akmods` antes da primeira compilação do driver;
+3. instala `akmod-nvidia` e `xorg-x11-drv-nvidia-cuda`;
+4. força a reconstrução dos módulos já assinados;
+5. quando Secure Boot está ativo, solicita a importação da chave pública no MOK caso ela ainda não esteja inscrita.
+
+Na primeira instalação com Secure Boot ativo, `mokutil` solicita uma senha temporária. No reboot seguinte, o firmware abre o MokManager; confirme a inscrição da chave usando essa senha. Esse passo é necessariamente interativo e não pode ser automatizado pela imagem.
+
+Depois que a chave é inscrita, atualizações futuras de kernel ou do driver são tratadas pelo `akmods`, que recompila e assina os módulos NVIDIA automaticamente com a mesma chave.
+
+Para conferir o estado:
 
 ```bash
 bash ./scripts/verify.sh
 ```
+
+A verificação mostra o estado do Secure Boot, a GPU/versão do driver, o assinante do módulo NVIDIA e se a chave do `akmods` está inscrita.
 
 ## Princípio do projeto
 
