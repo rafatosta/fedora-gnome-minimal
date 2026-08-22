@@ -147,6 +147,30 @@ jobs:
               bash ./build/build-iso.sh /work/cache/Fedora-Everything-netinst.iso
             '
 
+      - name: Show build failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          echo "::group::Generated build files"
+          sudo find dist -maxdepth 4 -type f -printf '%p (%s bytes)\n' 2>/dev/null || true
+          echo "::endgroup::"
+
+          echo "::group::virt-install.log"
+          if [[ -f dist/virt-install.log ]]; then
+            sudo cat dist/virt-install.log
+          else
+            echo "dist/virt-install.log was not generated."
+          fi
+          echo "::endgroup::"
+
+          echo "::group::livemedia-creator.log (last 300 lines)"
+          if [[ -f dist/livemedia-creator.log ]]; then
+            sudo tail -n 300 dist/livemedia-creator.log
+          else
+            echo "dist/livemedia-creator.log was not generated."
+          fi
+          echo "::endgroup::"
+
       - name: Normalize ownership and create checksum
         if: always()
         shell: bash
@@ -164,8 +188,8 @@ jobs:
           name: build-logs-${{ github.run_number }}
           path: |
             dist/livemedia-creator.log
+            dist/virt-install.log
             dist/lmc/**/*.log
-            dist/lmc/**/virt-install.log
           if-no-files-found: warn
           retention-days: 7
 
