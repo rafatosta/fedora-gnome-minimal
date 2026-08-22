@@ -163,6 +163,7 @@ jobs:
         with:
           name: build-logs-${{ github.run_number }}
           path: |
+            dist/livemedia-creator.log
             dist/lmc/**/*.log
             dist/lmc/**/virt-install.log
           if-no-files-found: warn
