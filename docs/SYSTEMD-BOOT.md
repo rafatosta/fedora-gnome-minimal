@@ -4,29 +4,35 @@ Este projeto usa `systemd-boot` de forma deliberada em vez de GRUB no sistema in
 
 ## Status no Fedora
 
-O Fedora/Anaconda oferece suporte explícito ao `systemd-boot` por meio de `inst.sdboot` e `bootloader --sdboot`, mas ele não é o bootloader padrão da distribuição. A documentação do Anaconda ainda o classifica como uma alternativa voltada a testes/desenvolvimento. Portanto, esta é uma escolha específica deste projeto e deve ser validada a cada nova versão do Fedora antes de uma reinstalação real.
+O Fedora/Anaconda oferece suporte explícito ao `systemd-boot` por meio de `inst.sdboot` e `bootloader --sdboot`, mas ele não é o bootloader padrão da distribuição. A documentação do Anaconda ainda o trata como uma alternativa que deve ser validada para a plataforma alvo.
 
-## Por que usar
+## Arquitetura adotada
 
-O alvo deste projeto é um computador moderno, UEFI, com Secure Boot e apenas Fedora como sistema principal. Nesse cenário, `systemd-boot` reduz a complexidade do caminho de inicialização e combina com a proposta de uma instalação mínima e reproduzível.
+O projeto usa **instalação baseada em pacotes** a partir da Fedora Everything netinstall.
 
-## Live ISO e Anaconda WebUI
+Isso é intencional: o Anaconda documenta que `inst.sdboot` funciona diretamente em instalações package-based, nas quais o bootloader pode ser escolhido no momento da instalação. Em instalações Live, essa escolha só funciona quando a própria Live foi construída com systemd-boot, o que entrou em conflito com o pipeline tradicional do Lorax usado nos primeiros protótipos deste projeto.
 
-O Anaconda documenta que `inst.sdboot` funciona diretamente em instalações baseadas em pacotes. Para instalações a partir de Live image, o `systemd-boot` só pode ser usado se a própria imagem Live tiver sido construída com `systemd-boot` em vez de GRUB.
+A arquitetura atual elimina essa ambiguidade:
 
-Por isso o Kickstart de composição contém:
+1. a Fedora Everything netinstall fornece o runtime oficial do Anaconda;
+2. `mkksiso` incorpora o Kickstart do projeto;
+3. a linha de comando da mídia contém `inst.sdboot`;
+4. o Kickstart também contém `bootloader --sdboot`;
+5. o Anaconda instala os pacotes diretamente no sistema de destino e configura systemd-boot durante a própria instalação.
 
-```text
-bootloader --sdboot
-```
+Não há clonagem de rootfs Live nem conversão posterior de GRUB para systemd-boot.
 
-A construção também é executada em UEFI (`livemedia-creator --virt-uefi`) e o disco temporário usado na composição possui uma ESP dedicada.
+## WebUI e armazenamento
 
-Essas diretivas se aplicam ao ambiente temporário de construção da Live ISO. Na instalação final, a WebUI do Anaconda continua responsável pelo armazenamento e pode oferecer `Reinstall Fedora` quando detectar um layout Fedora compatível.
+A mídia usa `inst.profile=fedora-workstation` e mantém a configuração de armazenamento interativa.
+
+O Kickstart não contém `clearpart`, `autopart` ou `part`. Portanto o usuário continua escolhendo o armazenamento na WebUI, inclusive `Reinstall Fedora` quando o Anaconda detectar um layout compatível.
+
+`inst.pauseatsummary` é incluído para exigir confirmação do usuário antes do início efetivo da instalação.
 
 ## Secure Boot
 
-A imagem instala o pacote Fedora `systemd-boot`, e não `systemd-boot-unsigned`. O pacote assinado é o apropriado para máquinas com Secure Boot.
+A seleção de pacotes inclui o pacote Fedora `systemd-boot`, e não `systemd-boot-unsigned`.
 
 O Secure Boot continua sendo controlado pela UEFI do computador. Este projeto não o ativa ou desativa.
 
@@ -37,9 +43,9 @@ A assinatura do bootloader e a assinatura dos módulos NVIDIA são problemas dis
 
 ## ESP
 
-Com `systemd-boot`, kernels, initramfs e arquivos de boot ficam associados à EFI System Partition. O Anaconda alerta que a ESP precisa ter espaço suficiente para futuras atualizações de kernel.
+Com `systemd-boot`, a EFI System Partition precisa ter espaço adequado para os artefatos de boot e futuras atualizações de kernel.
 
-Para novas instalações, deixe o Anaconda criar o layout recomendado pelo Fedora. Em reinstalações, use `Reinstall Fedora` somente quando a WebUI oferecer essa opção; caso contrário, revise os pontos de montagem manualmente e confirme que a ESP existente tem espaço adequado.
+Para novas instalações, deixe o Anaconda criar o layout recomendado quando possível. Em reinstalações, use `Reinstall Fedora` somente quando a WebUI oferecer essa opção; caso contrário, revise os pontos de montagem manualmente.
 
 ## Verificação após a instalação
 
