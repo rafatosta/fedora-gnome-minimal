@@ -7,8 +7,10 @@
 #
 # O projeto usa systemd-boot deliberadamente. Para Live installs o Anaconda
 # exige que a própria imagem tenha sido construída com systemd-boot.
+#
+# Não definir graphical/text/cmdline neste Kickstart: o livemedia-creator
+# rejeita display modes explícitos porque eles interferem no fluxo de composição.
 
-graphical
 lang pt_BR.UTF-8
 keyboard --vckeymap=br-abnt2 --xlayouts='br'
 timezone America/Bahia --utc
