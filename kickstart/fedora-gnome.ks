@@ -112,15 +112,21 @@ adw-gtk3-theme
 gnome-shell-extension-user-theme
 gnome-shell-extension-appindicator
 
-# Evita aplicativos não utilizados
+# Evita aplicativos não utilizados.
+#
+# Não excluir firefox aqui: anaconda-webui exige Firefox quando a imagem usa
+# fedora-release-workstation. A remoção deve ser reavaliada somente depois de
+# validar a composição e o fluxo de instalação da mídia Live.
+#
+# Não excluir abrt isoladamente: @standard inclui abrt-cli, que depende de abrt.
+# Para remover ABRT no futuro é necessário excluir o conjunto de dependências de
+# forma coerente, sem quebrar a resolução de pacotes do Anaconda.
 -gnome-tour
 -gnome-boxes
 -gnome-maps
 -gnome-weather
 -showtime
 -decibels
--firefox
--abrt
 -simple-scan
 -mediawriter
 -malcontent-control
