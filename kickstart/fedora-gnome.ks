@@ -194,6 +194,42 @@ if [[ "$lorax_kernel_count" -eq 0 ]]; then
   exit 1
 fi
 
+# O Lorax monta apenas a partição raiz depois que o Anaconda termina. Como
+# /boot/efi é uma ESP separada, os arquivos EFI instalados nela ficam invisíveis
+# para o teste exists("boot/efi/EFI/*/gcdx64.efi") do template x86.tmpl. Sem esse
+# teste o efi.tmpl não é executado e o empacotamento falha porque EFI/BOOT e
+# images/efiboot.img nunca são criados.
+#
+# Para a etapa de composição, desmontamos temporariamente a ESP e colocamos no
+# diretório subjacente da partição raiz cópias dos binários de mídia fornecidos
+# pelos próprios pacotes Fedora. Em seguida a ESP é remontada. Assim o sistema
+# instalado continua usando systemd-boot na ESP real, enquanto o Lorax consegue
+# enxergar os arquivos necessários ao montar somente a raiz.
+if mountpoint -q /boot/efi; then
+  umount /boot/efi
+  lorax_efi_dir=/boot/efi/EFI/fedora
+  install -d -m 0755 "$lorax_efi_dir"
+
+  grub_cdboot="$(find /usr/lib/efi/grub2 -type f -path '*/EFI/fedora/gcdx64.efi' -print -quit 2>/dev/null || true)"
+  shim_bin="$(find /usr/lib/efi/shim -type f -path '*/EFI/fedora/shimx64.efi' -print -quit 2>/dev/null || true)"
+  mm_bin="$(find /usr/lib/efi/shim -type f -path '*/EFI/fedora/mmx64.efi' -print -quit 2>/dev/null || true)"
+
+  if [[ -z "$grub_cdboot" || -z "$shim_bin" || -z "$mm_bin" ]]; then
+    echo "ERRO: binários EFI de mídia não encontrados em /usr/lib/efi/{grub2,shim}." >&2
+    exit 1
+  fi
+
+  install -m 0644 "$grub_cdboot" "$lorax_efi_dir/gcdx64.efi"
+  install -m 0644 "$shim_bin" "$lorax_efi_dir/shimx64.efi"
+  install -m 0644 "$mm_bin" "$lorax_efi_dir/mmx64.efi"
+  echo "Lorax EFI bridge: arquivos de mídia preparados na raiz subjacente."
+
+  mount /boot/efi
+else
+  echo "ERRO: /boot/efi não está montado durante o %post; não é possível preparar a ponte EFI do Lorax." >&2
+  exit 1
+fi
+
 # O sistema instalado deve gerar sua própria identidade.
 rm -f /etc/machine-id
 : > /etc/machine-id
