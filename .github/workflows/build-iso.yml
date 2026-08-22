@@ -4,29 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       fedora_release:
-        description: Fedora release used by the build container and source ISO
+        description: Fedora release used by the compose container
         required: true
         default: "44"
-        type: string
-      compose:
-        description: Fedora compose identifier used in the source ISO filename
-        required: true
-        default: "1.7"
-        type: string
-      iso_url:
-        description: Optional explicit Fedora Everything netinstall URL
-        required: false
-        default: ""
-        type: string
-      iso_sha256:
-        description: SHA256 of the source ISO; Fedora 44/1.7 is filled automatically
-        required: false
-        default: ""
-        type: string
-      install_repo_url:
-        description: Optional package repository URL used by Anaconda during installation
-        required: false
-        default: ""
         type: string
       publish_release:
         description: Publish the ISO as a GitHub prerelease instead of a temporary Actions artifact
@@ -46,13 +26,12 @@ concurrency:
 
 env:
   FEDORA_RELEASE: ${{ inputs.fedora_release || '44' }}
-  FEDORA_COMPOSE: ${{ inputs.compose || '1.7' }}
 
 jobs:
   build:
     name: Fedora ${{ inputs.fedora_release || '44' }} x86_64
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 240
 
     steps:
       - name: Checkout
@@ -64,63 +43,8 @@ jobs:
           docker system prune -af || true
           df -h /
 
-      - name: Resolve Fedora source ISO
-        id: source
+      - name: Build full package-based installer ISO
         shell: bash
-        env:
-          INPUT_URL: ${{ inputs.iso_url || '' }}
-          INPUT_SHA256: ${{ inputs.iso_sha256 || '' }}
-        run: |
-          set -euo pipefail
-
-          url="$INPUT_URL"
-          sha256="$INPUT_SHA256"
-
-          if [[ -z "$url" ]]; then
-            url="https://download.fedoraproject.org/pub/fedora/linux/releases/${FEDORA_RELEASE}/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-${FEDORA_RELEASE}-${FEDORA_COMPOSE}.iso"
-          fi
-
-          if [[ -z "$sha256" ]]; then
-            if [[ "$FEDORA_RELEASE" == "44" && "$FEDORA_COMPOSE" == "1.7" ]]; then
-              sha256="bd285201494dd0ba09b54d05ac707de1401668b8512a573edb5922dcf9d7067e"
-            else
-              echo "::error::Informe iso_sha256 para Fedora ${FEDORA_RELEASE}/${FEDORA_COMPOSE}. O workflow não aceita uma ISO sem checksum conhecido."
-              exit 2
-            fi
-          fi
-
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve installation repository
-        id: install_repo
-        shell: bash
-        env:
-          INPUT_INSTALL_REPO: ${{ inputs.install_repo_url || '' }}
-        run: |
-          set -euo pipefail
-          repo="$INPUT_INSTALL_REPO"
-          if [[ -z "$repo" ]]; then
-            repo="https://download.fedoraproject.org/pub/fedora/linux/releases/${FEDORA_RELEASE}/Everything/x86_64/os/"
-          fi
-          echo "url=$repo" >> "$GITHUB_OUTPUT"
-          echo "Package repository: $repo"
-
-      - name: Download and verify Fedora Everything
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p cache
-          curl --fail --location --retry 5 --retry-all-errors \
-            --output cache/Fedora-Everything-netinst.iso \
-            '${{ steps.source.outputs.url }}'
-          echo '${{ steps.source.outputs.sha256 }}  cache/Fedora-Everything-netinst.iso' | sha256sum -c -
-          ls -lh cache/Fedora-Everything-netinst.iso
-
-      - name: Build package-based installer ISO
-        shell: bash
-        env:
-          INSTALL_REPO_URL: ${{ steps.install_repo.outputs.url }}
         run: |
           set -euo pipefail
 
@@ -128,14 +52,21 @@ jobs:
             --privileged \
             --security-opt label=disable \
             -e FEDORA_RELEASE="$FEDORA_RELEASE" \
-            -e INSTALL_REPO_URL="$INSTALL_REPO_URL" \
             -v "$PWD:/work" \
             -w /work \
             "fedora:${FEDORA_RELEASE}" \
             bash -lc '
               set -euo pipefail
-              dnf install -y lorax
-              bash ./build/build-iso.sh /work/cache/Fedora-Everything-netinst.iso
+              dnf install -y \
+                pungi \
+                lorax \
+                createrepo_c \
+                genisoimage \
+                isomd5sum \
+                pykickstart \
+                libcomps
+
+              bash ./build/build-iso.sh
             '
 
       - name: Show build failure diagnostics
@@ -143,24 +74,28 @@ jobs:
         shell: bash
         run: |
           echo "::group::Generated build files"
-          sudo find dist -maxdepth 3 -type f -printf '%p (%s bytes)\n' 2>/dev/null || true
+          sudo find dist -maxdepth 8 -type f -printf '%p (%s bytes)\n' 2>/dev/null | tail -n 500 || true
           echo "::endgroup::"
 
-          echo "::group::mkksiso.log"
-          if [[ -f dist/mkksiso.log ]]; then
-            sudo cat dist/mkksiso.log
+          echo "::group::pungi.log"
+          if [[ -f dist/pungi.log ]]; then
+            sudo tail -n 500 dist/pungi.log
           else
-            echo "dist/mkksiso.log was not generated."
+            echo "dist/pungi.log was not generated."
           fi
           echo "::endgroup::"
 
-      - name: Normalize ownership and create checksum
+          echo "::group::Pungi phase logs"
+          sudo find dist/pungi -type f -path '*/logs/*' -print -exec tail -n 120 {} \; 2>/dev/null || true
+          echo "::endgroup::"
+
+      - name: Normalize ownership and verify checksum
         if: always()
         shell: bash
         run: |
-          sudo chown -R "$(id -u):$(id -g)" dist cache 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" dist 2>/dev/null || true
           if [[ -f dist/fedora-gnome-minimal.iso ]]; then
-            sha256sum dist/fedora-gnome-minimal.iso > dist/fedora-gnome-minimal.iso.sha256
+            sha256sum -c dist/fedora-gnome-minimal.iso.sha256
             ls -lh dist/fedora-gnome-minimal.iso dist/fedora-gnome-minimal.iso.sha256
           fi
 
@@ -169,7 +104,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-logs-${{ github.run_number }}
-          path: dist/mkksiso.log
+          path: |
+            dist/pungi.log
+            dist/pungi/**/logs/**
           if-no-files-found: warn
           retention-days: 7
 
@@ -197,7 +134,7 @@ jobs:
             dist/fedora-gnome-minimal.iso.sha256 \
             --target "$GITHUB_SHA" \
             --title "Fedora GNOME Minimal build #${GITHUB_RUN_NUMBER}" \
-            --notes "Automated Fedora ${FEDORA_RELEASE} package-based installer from ${GITHUB_SHA}. Source: Fedora Everything ${FEDORA_RELEASE}-${FEDORA_COMPOSE} x86_64. Packages are installed from the Fedora Everything repository at install time." \
+            --notes "Fedora ${FEDORA_RELEASE} x86_64 full package-based installer composed with Pungi + Lorax. RPM repository is embedded in the ISO; installation does not depend on downloading the Fedora package set." \
             --prerelease
 
       - name: Publish tagged release
