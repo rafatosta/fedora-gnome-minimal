@@ -38,9 +38,17 @@ rm -f "$LOGFILE"
 #
 # --virt-uefi é obrigatório aqui porque a imagem é construída com
 # systemd-boot e uma EFI System Partition (ESP).
+#
+# --extra-boot-args="inst.sdboot" é igualmente importante: a diretiva
+# `bootloader --sdboot` do Kickstart vale para o sistema temporário criado
+# durante a composição da Live. A instalação interativa posterior possui sua
+# própria execução do Anaconda; por isso a ISO final precisa carregar
+# `inst.sdboot` na linha de comando do kernel para que o sistema instalado pelo
+# usuário também selecione systemd-boot, em vez do bootloader Fedora padrão.
 livemedia-creator \
   --make-iso \
   --virt-uefi \
+  --extra-boot-args="inst.sdboot" \
   --iso="$INPUT_ISO" \
   --ks="$KS" \
   --resultdir="$RESULT_DIR" \
@@ -56,3 +64,4 @@ cp -f "$BUILT_ISO" "$OUTPUT_ISO"
 echo "ISO Live criada em: $OUTPUT_ISO"
 echo "Bootloader alvo: systemd-boot (UEFI)."
 echo "A instalação final usa a WebUI do Anaconda e mantém o armazenamento interativo."
+echo "A ISO inclui inst.sdboot para manter systemd-boot também na instalação final."
