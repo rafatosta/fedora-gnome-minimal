@@ -230,6 +230,14 @@ else
   exit 1
 fi
 
+# A imagem Live não pode carregar o /etc/fstab criado pelo Anaconda para o
+# disco temporário usado durante a composição. Os UUIDs desse disco não existem
+# quando a ISO inicia e o systemd entra em emergency.target tentando montar a
+# antiga raiz/ESP. O dracut-live monta o rootfs da mídia; portanto o fstab da
+# imagem deve ficar vazio. O Anaconda criará um novo /etc/fstab no sistema final
+# conforme o particionamento escolhido pelo usuário durante a instalação.
+: > /etc/fstab
+
 # O sistema instalado deve gerar sua própria identidade.
 rm -f /etc/machine-id
 : > /etc/machine-id
