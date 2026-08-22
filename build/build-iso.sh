@@ -24,10 +24,14 @@ ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 INPUT_ISO="$(realpath "$1")"
 RESULT_DIR="$ROOT_DIR/dist/lmc"
 OUTPUT_ISO="$ROOT_DIR/dist/fedora-gnome-minimal.iso"
+LOGFILE="$ROOT_DIR/dist/livemedia-creator.log"
 KS="$ROOT_DIR/kickstart/fedora-gnome.ks"
 
+# livemedia-creator exige que --resultdir NÃO exista ao iniciar.
+# Crie apenas o diretório pai e deixe a própria ferramenta criar RESULT_DIR.
+mkdir -p "$(dirname "$OUTPUT_ISO")"
 rm -rf "$RESULT_DIR"
-mkdir -p "$RESULT_DIR" "$(dirname "$OUTPUT_ISO")"
+rm -f "$LOGFILE"
 
 # O Kickstart descreve o conteúdo da imagem Live. Ele NÃO é usado para
 # automatizar o particionamento do computador do usuário.
@@ -40,7 +44,7 @@ livemedia-creator \
   --iso="$INPUT_ISO" \
   --ks="$KS" \
   --resultdir="$RESULT_DIR" \
-  --logfile="$RESULT_DIR/livemedia-creator.log"
+  --logfile="$LOGFILE"
 
 BUILT_ISO="$RESULT_DIR/images/boot.iso"
 if [[ ! -f "$BUILT_ISO" ]]; then
