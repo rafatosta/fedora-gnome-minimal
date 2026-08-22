@@ -1,66 +1,47 @@
 # Geração da mídia de instalação
 
-A mídia do Fedora GNOME Minimal é derivada da **Fedora Everything netinstall** com `mkksiso`, do Lorax. O projeto não usa mais `livemedia-creator` nem instala a partir de uma imagem Live clonada.
-
-A instalação final é **baseada em pacotes**, requisito importante para que o Anaconda possa selecionar `systemd-boot` no momento da instalação por meio de `inst.sdboot` / `bootloader --sdboot`.
+A mídia do Fedora GNOME Minimal é composta com **Pungi + Lorax**, seguindo o fluxo package-based tradicional do Fedora.
 
 ## Dependências
 
 ```bash
-sudo dnf install lorax
+sudo dnf install pungi lorax createrepo_c genisoimage isomd5sum
 ```
-
-## ISO fonte
-
-Use a Fedora Everything netinstall x86_64 da mesma versão alvo do projeto.
 
 ## Gerar
 
 ```bash
-sudo FEDORA_RELEASE=44 bash ./build/build-iso.sh ~/Downloads/Fedora-Everything-netinst-x86_64.iso
+sudo bash ./build/build-iso.sh
 ```
 
 A saída final será:
 
 ```text
 dist/fedora-gnome-minimal.iso
+dist/fedora-gnome-minimal.iso.sha256
 ```
 
-O log do `mkksiso` fica em:
+O log principal fica em `dist/pungi.log`; os logs detalhados de cada fase ficam dentro de `dist/pungi/`.
 
-```text
-dist/mkksiso.log
-```
+## Fluxo
 
-## Como funciona
+O Pungi usa `compose/fedora-gnome-minimal.conf` e executa:
 
-`mkksiso` preserva o runtime oficial do Anaconda e a estrutura de boot da Fedora Everything, incorpora `kickstart/fedora-gnome.ks` e acrescenta à linha de comando do instalador:
+1. `pkgset` a partir dos repositórios oficiais Fedora;
+2. `gather` para resolver o conjunto definido em `comps.xml`;
+3. `createrepo` para produzir o repositório da variante;
+4. `buildinstall` com Lorax para criar o runtime/boot do Anaconda;
+5. `createiso` para gerar a ISO completa.
 
-```text
-inst.sdboot
-inst.profile=fedora-workstation
-inst.pauseatsummary
-inst.repo=<árvore Fedora Everything>
-```
+A mídia final contém os RPMs e não é uma Live image nem uma netinstall modificada com `mkksiso`.
 
-O Kickstart define a seleção de pacotes e `bootloader --sdboot`, mas não contém `clearpart`, `autopart` ou `part`. Assim, a configuração de armazenamento continua sendo feita pelo usuário na WebUI.
+## Instalação
 
-## Rede
+`kickstart/fedora-gnome.ks` é incorporado pelo `buildinstall`. Ele:
 
-A ISO é uma mídia **netinstall**: os pacotes do sistema são obtidos do repositório Fedora Everything durante a instalação. Por padrão o script usa:
-
-```text
-https://download.fedoraproject.org/pub/fedora/linux/releases/<versão>/Everything/x86_64/os/
-```
-
-Para usar outro mirror ou uma árvore Fedora compatível:
-
-```bash
-sudo INSTALL_REPO_URL=https://servidor/exemplo/os/ \
-  FEDORA_RELEASE=44 \
-  bash ./build/build-iso.sh Fedora-Everything-netinst.iso
-```
-
-## systemd-boot
-
-O sistema final é instalado diretamente com `systemd-boot`; não há conversão pós-instalação e não há dependência do bootloader da mídia para definir o bootloader do sistema alvo. Consulte `docs/SYSTEMD-BOOT.md`.
+- seleciona o ambiente `Fedora GNOME Minimal`;
+- usa `bootloader --sdboot`;
+- mantém `root` bloqueado;
+- não cria usuário;
+- não automatiza particionamento;
+- habilita GDM/`graphical.target` para que o GNOME Initial Setup crie o primeiro usuário no primeiro boot.
