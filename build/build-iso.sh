@@ -12,6 +12,13 @@ command -v livemedia-creator >/dev/null 2>&1 || {
   exit 1
 }
 
+# systemd-boot é UEFI-only. O build precisa usar firmware UEFI/OVMF.
+if [[ ! -d /usr/share/edk2 ]]; then
+  echo "Firmware UEFI/EDK2 não encontrado em /usr/share/edk2." >&2
+  echo "Instale o pacote de firmware UEFI fornecido pela sua versão do Fedora." >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 INPUT_ISO="$(realpath "$1")"
@@ -22,10 +29,14 @@ KS="$ROOT_DIR/kickstart/fedora-gnome.ks"
 rm -rf "$RESULT_DIR"
 mkdir -p "$RESULT_DIR" "$(dirname "$OUTPUT_ISO")"
 
-# O Kickstart aqui descreve o conteúdo da imagem Live. Ele NÃO é usado para
+# O Kickstart descreve o conteúdo da imagem Live. Ele NÃO é usado para
 # automatizar o particionamento do computador do usuário.
+#
+# --virt-uefi é obrigatório aqui porque a imagem é construída com
+# systemd-boot e uma EFI System Partition (ESP).
 livemedia-creator \
   --make-iso \
+  --virt-uefi \
   --iso="$INPUT_ISO" \
   --ks="$KS" \
   --resultdir="$RESULT_DIR" \
@@ -39,4 +50,5 @@ fi
 
 cp -f "$BUILT_ISO" "$OUTPUT_ISO"
 echo "ISO Live criada em: $OUTPUT_ISO"
+echo "Bootloader alvo: systemd-boot (UEFI)."
 echo "A instalação final usa a WebUI do Anaconda e mantém o armazenamento interativo."
