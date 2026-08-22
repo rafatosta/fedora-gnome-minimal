@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   validate:
-    name: Shell, Kickstart and manifests
+    name: Shell, Kickstart, compose and manifests
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +31,7 @@ jobs:
             fedora:44 \
             bash -lc '
               set -euo pipefail
-              dnf install -y ShellCheck pykickstart
+              dnf install -y ShellCheck pykickstart libxml2 python3
 
               while IFS= read -r -d "" script; do
                 echo "bash -n: $script"
@@ -40,6 +40,19 @@ jobs:
 
               shellcheck scripts/*.sh build/*.sh
               ksvalidator kickstart/fedora-gnome.ks
+              xmllint --noout compose/comps.xml compose/variants.xml
+              python3 -m py_compile compose/fedora-gnome-minimal.conf
+
+              # Política deliberada: armazenamento interativo e usuário somente
+              # no primeiro boot gráfico via GNOME Initial Setup.
+              if grep -Eq "^[[:space:]]*(clearpart|autopart|part|partition|user)[[:space:]]" kickstart/fedora-gnome.ks; then
+                echo "Kickstart não pode automatizar armazenamento nem criar usuário." >&2
+                exit 1
+              fi
+              grep -Eq "^[[:space:]]*rootpw[[:space:]]+--lock([[:space:]]|$)" kickstart/fedora-gnome.ks
+              grep -q "gnome-initial-setup" compose/comps.xml
+              grep -q "gdm" compose/comps.xml
+              grep -q "bootloader --sdboot" kickstart/fedora-gnome.ks
 
               for manifest in packages/rpm.txt packages/flatpak.txt; do
                 duplicates="$(grep -Ev "^[[:space:]]*(#|$)" "$manifest" | sort | uniq -d)"
