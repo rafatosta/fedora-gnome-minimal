@@ -44,6 +44,17 @@ glibc-all-langpacks
 # systemd-boot assinado para Secure Boot (não usar systemd-boot-unsigned)
 systemd-boot
 
+# Dependências usadas pelo Lorax para empacotar a ISO bootável.
+#
+# O template x86 do Lorax ainda produz estruturas El Torito/GRUB para a própria
+# mídia ISO e precisa dos módulos i386-pc, além dos binários EFI usados para
+# montar a árvore EFI/BOOT. Esses pacotes NÃO selecionam GRUB como bootloader do
+# sistema instalado: a diretiva acima continua sendo `bootloader --sdboot`.
+grub2-pc-modules
+grub2-efi-x64
+grub2-efi-x64-cdboot
+shim-x64
+
 # Instalador Fedora / WebUI usada pelo Workstation
 anaconda
 anaconda-install-env-deps
