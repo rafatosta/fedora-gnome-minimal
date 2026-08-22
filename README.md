@@ -2,12 +2,12 @@
 
 Projeto pessoal para instalar um Fedora GNOME tradicional, mutável e reproduzível, com apenas os componentes necessários ao uso diário.
 
-A proposta é substituir o modelo "instalar Fedora Workstation completo e depois remover coisas" por uma imagem Live enxuta, mantendo a experiência moderna de instalação do Fedora Workstation:
+A proposta é substituir o modelo "instalar Fedora Workstation completo e depois remover coisas" por uma mídia própria baseada na Fedora Everything netinstall, mantendo a experiência moderna de instalação do Fedora Workstation:
 
 - Fedora tradicional, administrado com `dnf`;
 - GNOME funcional, sem depender do conjunto completo do Workstation;
-- imagem **Live** própria;
-- **Anaconda WebUI**, como no Fedora Workstation atual;
+- instalação **baseada em pacotes**;
+- **Anaconda WebUI** com perfil Workstation;
 - armazenamento decidido pelo usuário no instalador;
 - possibilidade de `Reinstall Fedora` quando o layout existente é compatível, preservando `/home` e dados pessoais;
 - `systemd-boot` em UEFI, em vez de GRUB, como escolha deliberada do projeto;
@@ -25,7 +25,7 @@ A proposta é substituir o modelo "instalar Fedora Workstation completo e depois
   validate.yml            valida scripts, Kickstart e manifests
   build-iso.yml           gera e publica a ISO sob demanda ou por tag
 kickstart/
-  fedora-gnome.ks         receita usada para CONSTRUIR a imagem Live
+  fedora-gnome.ks         seleção de pacotes e configuração da instalação final
 packages/
   rpm.txt                 aplicativos/pacotes RPM adicionais
   flatpak.txt             aplicativos Flatpak
@@ -38,7 +38,7 @@ scripts/
   post-install.sh         orquestrador pós-instalação
   verify.sh               checagem rápida do ambiente
 build/
-  build-iso.sh            gera a imagem Live com livemedia-creator em UEFI
+  build-iso.sh            deriva a mídia da Fedora Everything usando mkksiso
   README.md               instruções de geração da mídia
 docs/
   CI.md                   GitHub Actions, releases e fluxo de testes
@@ -49,9 +49,9 @@ docs/
 
 ## Instalação e recuperação
 
-O Kickstart deste repositório **não é executado para particionar o computador do usuário**. Ele serve apenas como receita de composição da imagem Live.
+O Kickstart deste repositório é executado pelo Anaconda durante a instalação final, mas **não define o particionamento**. Ele controla principalmente a seleção de pacotes e o bootloader.
 
-Ao iniciar o pendrive, a instalação final acontece pela WebUI do Anaconda. Assim, as decisões de armazenamento permanecem interativas, incluindo os cenários oferecidos pelo instalador quando aplicáveis:
+Ao iniciar a mídia, a instalação acontece pela WebUI do Anaconda. As decisões de armazenamento permanecem interativas, incluindo os cenários oferecidos pelo instalador quando aplicáveis:
 
 - usar o disco inteiro;
 - usar espaço livre;
@@ -60,18 +60,23 @@ Ao iniciar o pendrive, a instalação final acontece pela WebUI do Anaconda. Ass
 
 A opção `Reinstall Fedora` é especialmente importante para este projeto: ela permite reconstruir o sistema mantendo a home e os dados pessoais quando o layout existente atende aos critérios do Anaconda.
 
-> As diretivas `clearpart` e `part` existentes em `kickstart/fedora-gnome.ks` atuam exclusivamente no disco temporário criado durante a **construção da imagem Live** pelo `livemedia-creator`. Elas não são aplicadas ao disco do computador que receberá o Fedora.
-
 ## systemd-boot
 
-O projeto usa `systemd-boot` no sistema instalado. Essa não é a configuração padrão do Fedora: o suporte existe no Anaconda, mas a documentação upstream ainda o trata como alternativa para testes/desenvolvimento.
+O projeto usa `systemd-boot` no sistema instalado. Essa não é a configuração padrão do Fedora.
 
-Para Live installs, o Anaconda exige que a própria imagem Live tenha sido construída com `systemd-boot`; por isso:
+A mídia é package-based porque o Anaconda suporta a escolha do bootloader no momento da instalação nesse modo. O build incorpora:
 
-- o Kickstart usa `bootloader --sdboot`;
-- a composição roda com `livemedia-creator --virt-uefi`;
-- o disco temporário de build possui uma ESP dedicada de 1 GiB;
-- o pacote usado é `systemd-boot`, assinado para Secure Boot, e não `systemd-boot-unsigned`.
+```text
+inst.sdboot
+```
+
+na linha de comando do instalador, e o Kickstart contém:
+
+```text
+bootloader --sdboot
+```
+
+Isso evita a incompatibilidade observada nos primeiros protótipos baseados em Live image, nos quais a mídia final ainda dependia da infraestrutura GRUB do Lorax.
 
 Documentação detalhada: [`docs/SYSTEMD-BOOT.md`](docs/SYSTEMD-BOOT.md).
 
@@ -86,7 +91,9 @@ fedora-gnome-minimal.iso
 fedora-gnome-minimal.iso.sha256
 ```
 
-O workflow baixa a Fedora Everything oficial, valida o SHA-256 antes do build e executa `livemedia-creator` dentro de um container Fedora da mesma versão alvo.
+O workflow baixa a Fedora Everything netinstall oficial, valida o SHA-256 e usa `mkksiso` para incorporar o Kickstart e os argumentos do Anaconda. Não há criação de VM nem `livemedia-creator` no build atual.
+
+A mídia é netinstall: os pacotes são obtidos da árvore Fedora Everything durante a instalação. O workflow permite substituir a URL do repositório quando necessário.
 
 Tags `v*`, por exemplo `v44.1`, também disparam o build e publicam a ISO na Release correspondente.
 
@@ -94,11 +101,9 @@ Documentação completa: [`docs/CI.md`](docs/CI.md).
 
 ### Build local opcional
 
-O build local continua disponível para diagnóstico ou quando for necessário comparar o comportamento do runner:
-
 ```bash
-sudo dnf install lorax lorax-lmc-virt
-sudo bash ./build/build-iso.sh /caminho/Fedora-Everything-netinst.iso
+sudo dnf install lorax
+sudo FEDORA_RELEASE=44 bash ./build/build-iso.sh /caminho/Fedora-Everything-netinst.iso
 ```
 
 A saída será:
@@ -125,8 +130,6 @@ sudo bash ./scripts/post-install.sh
 ## NVIDIA e Secure Boot
 
 O script `scripts/setup-nvidia.sh` configura RPM Fusion e prepara o driver NVIDIA para funcionar com Secure Boot.
-
-O fluxo é equivalente ao que acontece quando o driver é instalado pelo GNOME Software no Fedora Workstation, mas aqui as etapas são explícitas no terminal. O projeto não ativa nem desativa Secure Boot no firmware.
 
 Na primeira instalação com Secure Boot ativo, pode ser necessário criar uma senha temporária para importar a chave. No reboot seguinte, confirme a inscrição no MokManager usando essa senha.
 

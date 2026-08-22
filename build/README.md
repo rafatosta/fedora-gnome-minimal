@@ -1,25 +1,23 @@
-# Geração da mídia Live
+# Geração da mídia de instalação
 
-A mídia do Fedora GNOME Minimal é construída com `livemedia-creator`, do Lorax. O objetivo é gerar uma **imagem Live própria** contendo GNOME + Anaconda WebUI, preservando a experiência de instalação moderna do Fedora Workstation.
+A mídia do Fedora GNOME Minimal é derivada da **Fedora Everything netinstall** com `mkksiso`, do Lorax. O projeto não usa mais `livemedia-creator` nem instala a partir de uma imagem Live clonada.
 
-A imagem é construída em **UEFI** e usa `systemd-boot` em vez de GRUB como bootloader alvo.
+A instalação final é **baseada em pacotes**, requisito importante para que o Anaconda possa selecionar `systemd-boot` no momento da instalação por meio de `inst.sdboot` / `bootloader --sdboot`.
 
 ## Dependências
 
 ```bash
-sudo dnf install lorax lorax-lmc-virt
+sudo dnf install lorax
 ```
-
-O build usa `livemedia-creator --virt-uefi`, necessário porque `systemd-boot` é UEFI-only. O script também verifica a presença do firmware EDK2 em `/usr/share/edk2`.
 
 ## ISO fonte
 
-Use uma ISO Fedora Everything/netinstall compatível com a versão alvo.
+Use a Fedora Everything netinstall x86_64 da mesma versão alvo do projeto.
 
 ## Gerar
 
 ```bash
-sudo bash ./build/build-iso.sh ~/Downloads/Fedora-Everything-netinst-x86_64.iso
+sudo FEDORA_RELEASE=44 bash ./build/build-iso.sh ~/Downloads/Fedora-Everything-netinst-x86_64.iso
 ```
 
 A saída final será:
@@ -28,25 +26,41 @@ A saída final será:
 dist/fedora-gnome-minimal.iso
 ```
 
-Os artefatos e logs intermediários ficam em:
+O log do `mkksiso` fica em:
 
 ```text
-dist/lmc/
+dist/mkksiso.log
 ```
 
-## Partições usadas durante o build
+## Como funciona
 
-O Kickstart cria somente no disco virtual temporário da composição:
+`mkksiso` preserva o runtime oficial do Anaconda e a estrutura de boot da Fedora Everything, incorpora `kickstart/fedora-gnome.ks` e acrescenta à linha de comando do instalador:
 
-- uma ESP de 1 GiB em `/boot/efi`;
-- uma raiz ext4 temporária para construir a imagem Live.
+```text
+inst.sdboot
+inst.profile=fedora-workstation
+inst.pauseatsummary
+inst.repo=<árvore Fedora Everything>
+```
 
-Essas partições não são impostas ao computador final.
+O Kickstart define a seleção de pacotes e `bootloader --sdboot`, mas não contém `clearpart`, `autopart` ou `part`. Assim, a configuração de armazenamento continua sendo feita pelo usuário na WebUI.
 
-## Instalação no computador
+## Rede
 
-A WebUI do Anaconda continua responsável pelo armazenamento real e apresenta os cenários disponíveis, como usar o disco inteiro, usar espaço livre, atribuir pontos de montagem ou `Reinstall Fedora` quando o layout detectado satisfaz os critérios do Anaconda.
+A ISO é uma mídia **netinstall**: os pacotes do sistema são obtidos do repositório Fedora Everything durante a instalação. Por padrão o script usa:
+
+```text
+https://download.fedoraproject.org/pub/fedora/linux/releases/<versão>/Everything/x86_64/os/
+```
+
+Para usar outro mirror ou uma árvore Fedora compatível:
+
+```bash
+sudo INSTALL_REPO_URL=https://servidor/exemplo/os/ \
+  FEDORA_RELEASE=44 \
+  bash ./build/build-iso.sh Fedora-Everything-netinst.iso
+```
 
 ## systemd-boot
 
-O Kickstart contém `bootloader --sdboot` e instala o pacote Fedora `systemd-boot`, apropriado para Secure Boot. O suporte existe no Anaconda, mas não é o padrão Fedora e ainda é descrito upstream como alternativa para testes/desenvolvimento. Consulte `docs/SYSTEMD-BOOT.md` e `docs/VALIDATION.md` ao migrar o projeto para uma nova versão major do Fedora.
+O sistema final é instalado diretamente com `systemd-boot`; não há conversão pós-instalação e não há dependência do bootloader da mídia para definir o bootloader do sistema alvo. Consulte `docs/SYSTEMD-BOOT.md`.

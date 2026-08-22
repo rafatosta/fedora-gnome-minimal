@@ -23,6 +23,11 @@ on:
         required: false
         default: ""
         type: string
+      install_repo_url:
+        description: Optional package repository URL used by Anaconda during installation
+        required: false
+        default: ""
+        type: string
       publish_release:
         description: Publish the ISO as a GitHub prerelease instead of a temporary Actions artifact
         required: true
@@ -47,7 +52,7 @@ jobs:
   build:
     name: Fedora ${{ inputs.fedora_release || '44' }} x86_64
     runs-on: ubuntu-24.04
-    timeout-minutes: 330
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -87,6 +92,20 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve installation repository
+        id: install_repo
+        shell: bash
+        env:
+          INPUT_INSTALL_REPO: ${{ inputs.install_repo_url || '' }}
+        run: |
+          set -euo pipefail
+          repo="$INPUT_INSTALL_REPO"
+          if [[ -z "$repo" ]]; then
+            repo="https://download.fedoraproject.org/pub/fedora/linux/releases/${FEDORA_RELEASE}/Everything/x86_64/os/"
+          fi
+          echo "url=$repo" >> "$GITHUB_OUTPUT"
+          echo "Package repository: $repo"
+
       - name: Download and verify Fedora Everything
         shell: bash
         run: |
@@ -98,52 +117,24 @@ jobs:
           echo '${{ steps.source.outputs.sha256 }}  cache/Fedora-Everything-netinst.iso' | sha256sum -c -
           ls -lh cache/Fedora-Everything-netinst.iso
 
-      - name: Inspect virtualization support
+      - name: Build package-based installer ISO
         shell: bash
-        run: |
-          if [[ -e /dev/kvm ]]; then
-            echo "KVM disponível no runner. O build usará aceleração de hardware."
-            ls -l /dev/kvm
-          else
-            echo "::warning::/dev/kvm não está disponível. O libvirt/QEMU poderá cair para emulação por software e o build pode ser muito mais lento."
-          fi
-
-      - name: Build Fedora GNOME Minimal in Fedora container
-        shell: bash
+        env:
+          INSTALL_REPO_URL: ${{ steps.install_repo.outputs.url }}
         run: |
           set -euo pipefail
 
-          kvm_args=()
-          if [[ -e /dev/kvm ]]; then
-            sudo chmod 666 /dev/kvm
-            kvm_args+=(--device=/dev/kvm)
-          fi
-
           docker run --rm \
             --privileged \
-            "${kvm_args[@]}" \
             --security-opt label=disable \
+            -e FEDORA_RELEASE="$FEDORA_RELEASE" \
+            -e INSTALL_REPO_URL="$INSTALL_REPO_URL" \
             -v "$PWD:/work" \
             -w /work \
             "fedora:${FEDORA_RELEASE}" \
             bash -lc '
               set -euo pipefail
-              dnf install -y \
-                lorax \
-                lorax-lmc-virt \
-                edk2-ovmf \
-                libvirt-client \
-                libvirt-daemon-kvm
-
-              mkdir -p /run/libvirt
-              if command -v libvirtd >/dev/null 2>&1; then
-                libvirtd -d
-              elif command -v virtqemud >/dev/null 2>&1; then
-                virtqemud -d
-              fi
-
-              sleep 2
-              virsh -c qemu:///system list || true
+              dnf install -y lorax
               bash ./build/build-iso.sh /work/cache/Fedora-Everything-netinst.iso
             '
 
@@ -152,22 +143,14 @@ jobs:
         shell: bash
         run: |
           echo "::group::Generated build files"
-          sudo find dist -maxdepth 4 -type f -printf '%p (%s bytes)\n' 2>/dev/null || true
+          sudo find dist -maxdepth 3 -type f -printf '%p (%s bytes)\n' 2>/dev/null || true
           echo "::endgroup::"
 
-          echo "::group::virt-install.log"
-          if [[ -f dist/virt-install.log ]]; then
-            sudo cat dist/virt-install.log
+          echo "::group::mkksiso.log"
+          if [[ -f dist/mkksiso.log ]]; then
+            sudo cat dist/mkksiso.log
           else
-            echo "dist/virt-install.log was not generated."
-          fi
-          echo "::endgroup::"
-
-          echo "::group::livemedia-creator.log (last 300 lines)"
-          if [[ -f dist/livemedia-creator.log ]]; then
-            sudo tail -n 300 dist/livemedia-creator.log
-          else
-            echo "dist/livemedia-creator.log was not generated."
+            echo "dist/mkksiso.log was not generated."
           fi
           echo "::endgroup::"
 
@@ -186,10 +169,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-logs-${{ github.run_number }}
-          path: |
-            dist/livemedia-creator.log
-            dist/virt-install.log
-            dist/lmc/**/*.log
+          path: dist/mkksiso.log
           if-no-files-found: warn
           retention-days: 7
 
@@ -217,7 +197,7 @@ jobs:
             dist/fedora-gnome-minimal.iso.sha256 \
             --target "$GITHUB_SHA" \
             --title "Fedora GNOME Minimal build #${GITHUB_RUN_NUMBER}" \
-            --notes "Automated Fedora ${FEDORA_RELEASE} test build from ${GITHUB_SHA}. Source: Fedora Everything ${FEDORA_RELEASE}-${FEDORA_COMPOSE} x86_64." \
+            --notes "Automated Fedora ${FEDORA_RELEASE} package-based installer from ${GITHUB_SHA}. Source: Fedora Everything ${FEDORA_RELEASE}-${FEDORA_COMPOSE} x86_64. Packages are installed from the Fedora Everything repository at install time." \
             --prerelease
 
       - name: Publish tagged release
