@@ -2,111 +2,142 @@
 
 Projeto pessoal para instalar um Fedora GNOME tradicional, mutável e reproduzível, com apenas os componentes necessários ao uso diário.
 
-A proposta é substituir o modelo "instalar Fedora Workstation completo e depois remover coisas" por uma mídia própria baseada na Fedora Everything netinstall, mantendo a experiência moderna de instalação do Fedora Workstation:
+A mídia é composta seguindo o fluxo tradicional de distribuição do Fedora: **Pungi + Lorax + comps + Anaconda**, em instalação package-based.
+
+Principais características:
 
 - Fedora tradicional, administrado com `dnf`;
-- GNOME funcional, sem depender do conjunto completo do Workstation;
-- instalação **baseada em pacotes**;
-- **Anaconda WebUI** com perfil Workstation;
+- GNOME funcional sem instalar o conjunto completo do Workstation;
+- ISO de instalação completa, com repositório RPM embutido;
+- Anaconda gráfico clássico;
 - armazenamento decidido pelo usuário no instalador;
-- possibilidade de `Reinstall Fedora` quando o layout existente é compatível, preservando `/home` e dados pessoais;
-- `systemd-boot` em UEFI, em vez de GRUB, como escolha deliberada do projeto;
-- Secure Boot suportado com o pacote Fedora assinado `systemd-boot`;
-- pacotes RPM essenciais definidos em arquivo;
-- aplicativos Flatpak definidos em arquivo;
-- NVIDIA via RPM Fusion com suporte a Secure Boot e assinatura automática por `akmods`;
-- serviços não utilizados desabilitados de forma defensiva;
-- validação e geração da ISO automatizadas com GitHub Actions.
+- `/home` existente pode ser reutilizada sem formatação pelo particionamento manual;
+- `systemd-boot` no sistema final, em UEFI;
+- conta `root` bloqueada;
+- nenhum usuário é criado durante a instalação;
+- primeiro usuário criado pelo **GNOME Initial Setup** no primeiro boot gráfico;
+- NVIDIA via RPM Fusion com suporte a Secure Boot e `akmods`;
+- validação e composição automatizadas com GitHub Actions.
 
 ## Estrutura
 
 ```text
 .github/workflows/
-  validate.yml            valida scripts, Kickstart e manifests
-  build-iso.yml           gera e publica a ISO sob demanda ou por tag
+  validate.yml            valida scripts, Kickstart, compose e manifests
+  build-iso.yml           compõe e publica a ISO
+compose/
+  fedora-gnome-minimal.conf  configuração Pungi
+  comps.xml                  grupo/ambiente Fedora GNOME Minimal
+  variants.xml               variante x86_64 da distribuição
 kickstart/
-  fedora-gnome.ks         seleção de pacotes e configuração da instalação final
+  fedora-gnome.ks          política da instalação final
 packages/
-  rpm.txt                 aplicativos/pacotes RPM adicionais
-  flatpak.txt             aplicativos Flatpak
+  rpm.txt                  aplicativos/pacotes RPM adicionais
+  flatpak.txt              aplicativos Flatpak
 scripts/
-  setup-repositories.sh   repositórios de terceiros
-  setup-nvidia.sh         RPM Fusion, NVIDIA, akmods e Secure Boot
-  install-rpm-apps.sh     instalação dos RPMs adicionais
-  install-flatpaks.sh     configuração do Flathub e Flatpaks
-  disable-services.sh     serviços não utilizados
-  post-install.sh         orquestrador pós-instalação
-  verify.sh               checagem rápida do ambiente
+  setup-repositories.sh
+  setup-nvidia.sh
+  install-rpm-apps.sh
+  install-flatpaks.sh
+  disable-services.sh
+  post-install.sh
+  verify.sh
 build/
-  build-iso.sh            deriva a mídia da Fedora Everything usando mkksiso
-  README.md               instruções de geração da mídia
+  build-iso.sh             executa o compose Pungi
+  README.md
 docs/
-  CI.md                   GitHub Actions, releases e fluxo de testes
-  NVIDIA-SECURE-BOOT.md   fluxo detalhado do driver NVIDIA e MOK
-  SYSTEMD-BOOT.md         arquitetura, Secure Boot e limitações do systemd-boot
-  VALIDATION.md           premissas técnicas validadas para o projeto
+  CI.md
+  NVIDIA-SECURE-BOOT.md
+  SYSTEMD-BOOT.md
+  VALIDATION.md
 ```
 
-## Instalação e recuperação
+## Arquitetura da mídia
 
-O Kickstart deste repositório é executado pelo Anaconda durante a instalação final, mas **não define o particionamento**. Ele controla principalmente a seleção de pacotes e o bootloader.
+O build usa as fases documentadas do Pungi:
 
-Ao iniciar a mídia, a instalação acontece pela WebUI do Anaconda. As decisões de armazenamento permanecem interativas, incluindo os cenários oferecidos pelo instalador quando aplicáveis:
+```text
+repositórios oficiais Fedora
+        ↓
+      pkgset
+        ↓
+      gather
+        ↓
+    createrepo
+        ↓
+buildinstall / Lorax
+        ↓
+    createiso
+        ↓
+fedora-gnome-minimal.iso
+```
+
+A ISO resultante contém:
+
+- runtime do Anaconda;
+- kernel/initrd e infraestrutura de boot da mídia;
+- repositório RPM da variante;
+- metadata `comps` própria;
+- Kickstart da instalação.
+
+A instalação não depende de baixar o conjunto principal de RPMs pela Internet.
+
+## Instalação e armazenamento
+
+O Kickstart não contém `clearpart`, `autopart`, `part` ou `partition`. Assim, o Anaconda continua responsável pelo armazenamento real do computador.
+
+Isso permite, entre outros cenários:
 
 - usar o disco inteiro;
 - usar espaço livre;
-- atribuir pontos de montagem manualmente;
-- **Reinstall Fedora**, quando uma instalação Fedora compatível é detectada.
+- particionamento manual;
+- reutilizar uma `/home` existente sem formatá-la.
 
-A opção `Reinstall Fedora` é especialmente importante para este projeto: ela permite reconstruir o sistema mantendo a home e os dados pessoais quando o layout existente atende aos critérios do Anaconda.
+Antes de confirmar uma reinstalação manual, confira cuidadosamente quais pontos de montagem serão formatados.
+
+## Primeiro usuário
+
+A política é deliberadamente semelhante à experiência do Fedora Workstation:
+
+1. a instalação termina sem criar usuário comum;
+2. `root` permanece bloqueado;
+3. o primeiro boot entra em `graphical.target` e inicia o GDM;
+4. o `gnome-initial-setup` cria o primeiro usuário;
+5. depois disso a sessão GNOME normal é iniciada.
+
+Por isso o Kickstart não contém a diretiva `user`.
 
 ## systemd-boot
 
-O projeto usa `systemd-boot` no sistema instalado. Essa não é a configuração padrão do Fedora.
-
-A mídia é package-based porque o Anaconda suporta a escolha do bootloader no momento da instalação nesse modo. O build incorpora:
-
-```text
-inst.sdboot
-```
-
-na linha de comando do instalador, e o Kickstart contém:
+A ISO é uma mídia **package-based**, não uma Live image. O Anaconda configura o sistema final com:
 
 ```text
 bootloader --sdboot
 ```
 
-Isso evita a incompatibilidade observada nos primeiros protótipos baseados em Live image, nos quais a mídia final ainda dependia da infraestrutura GRUB do Lorax.
+O bootloader da própria mídia de instalação é responsabilidade do Lorax e é independente do bootloader escolhido para o sistema instalado.
 
 Documentação detalhada: [`docs/SYSTEMD-BOOT.md`](docs/SYSTEMD-BOOT.md).
 
 ## Gerar a mídia
 
-O método preferencial é o GitHub Actions. Em **Actions → Build ISO → Run workflow**, mantenha os valores padrão para Fedora 44 e execute o job.
+O método preferencial é **Actions → Build ISO → Run workflow**.
 
-Por padrão, uma execução manual bem-sucedida cria uma prerelease `build-<número>` contendo:
+Uma execução manual com `publish_release=true` cria uma prerelease `build-<número>` contendo:
 
 ```text
 fedora-gnome-minimal.iso
 fedora-gnome-minimal.iso.sha256
 ```
 
-O workflow baixa a Fedora Everything netinstall oficial, valida o SHA-256 e usa `mkksiso` para incorporar o Kickstart e os argumentos do Anaconda. Não há criação de VM nem `livemedia-creator` no build atual.
-
-A mídia é netinstall: os pacotes são obtidos da árvore Fedora Everything durante a instalação. O workflow permite substituir a URL do repositório quando necessário.
-
-Tags `v*`, por exemplo `v44.1`, também disparam o build e publicam a ISO na Release correspondente.
-
-Documentação completa: [`docs/CI.md`](docs/CI.md).
-
-### Build local opcional
+### Build local
 
 ```bash
-sudo dnf install lorax
-sudo FEDORA_RELEASE=44 bash ./build/build-iso.sh /caminho/Fedora-Everything-netinst.iso
+sudo dnf install pungi lorax createrepo_c genisoimage isomd5sum
+sudo bash ./build/build-iso.sh
 ```
 
-A saída será:
+A saída final será:
 
 ```text
 dist/fedora-gnome-minimal.iso
@@ -114,7 +145,7 @@ dist/fedora-gnome-minimal.iso
 
 ## Pós-instalação
 
-Depois da primeira inicialização do sistema instalado, aplique todas as atualizações e reinicie antes de instalar os módulos externos:
+Depois de criar o primeiro usuário e entrar no sistema:
 
 ```bash
 sudo dnf upgrade --refresh -y
@@ -129,11 +160,7 @@ sudo bash ./scripts/post-install.sh
 
 ## NVIDIA e Secure Boot
 
-O script `scripts/setup-nvidia.sh` configura RPM Fusion e prepara o driver NVIDIA para funcionar com Secure Boot.
-
-Na primeira instalação com Secure Boot ativo, pode ser necessário criar uma senha temporária para importar a chave. No reboot seguinte, confirme a inscrição no MokManager usando essa senha.
-
-Depois que a chave é inscrita, atualizações futuras de kernel ou do driver são tratadas pelo `akmods`, que recompila e assina os módulos NVIDIA automaticamente com a mesma chave.
+O script `scripts/setup-nvidia.sh` configura RPM Fusion e prepara o driver NVIDIA para Secure Boot usando `akmods` e uma chave MOK local.
 
 Documentação detalhada: [`docs/NVIDIA-SECURE-BOOT.md`](docs/NVIDIA-SECURE-BOOT.md).
 
@@ -145,8 +172,4 @@ bash ./scripts/verify.sh
 
 ## Princípio do projeto
 
-O sistema operacional é descartável e reproduzível. Dados pessoais devem permanecer em `/home` e em backups. Configurações que precisam sobreviver a uma reinstalação devem ser versionadas explicitamente no repositório, em vez de depender do estado acumulado da instalação anterior.
-
-## Origem
-
-Este projeto reorganiza a seleção de aplicativos e ajustes do repositório `rafatosta/fedora_gnome`, mantendo o Fedora no modelo tradicional e mutável.
+O sistema operacional é descartável e reproduzível. Dados pessoais devem permanecer em `/home` e em backups. Configurações que precisam sobreviver a uma reinstalação devem ser versionadas explicitamente no repositório.
