@@ -15,31 +15,36 @@ A proposta é substituir o modelo "instalar Fedora Workstation completo e depois
 - pacotes RPM essenciais definidos em arquivo;
 - aplicativos Flatpak definidos em arquivo;
 - NVIDIA via RPM Fusion com suporte a Secure Boot e assinatura automática por `akmods`;
-- serviços não utilizados desabilitados de forma defensiva.
+- serviços não utilizados desabilitados de forma defensiva;
+- validação e geração da ISO automatizadas com GitHub Actions.
 
 ## Estrutura
 
 ```text
+.github/workflows/
+  validate.yml            valida scripts, Kickstart e manifests
+  build-iso.yml           gera e publica a ISO sob demanda ou por tag
 kickstart/
-  fedora-gnome.ks        receita usada para CONSTRUIR a imagem Live
+  fedora-gnome.ks         receita usada para CONSTRUIR a imagem Live
 packages/
-  rpm.txt                aplicativos/pacotes RPM adicionais
-  flatpak.txt            aplicativos Flatpak
+  rpm.txt                 aplicativos/pacotes RPM adicionais
+  flatpak.txt             aplicativos Flatpak
 scripts/
-  setup-repositories.sh  repositórios de terceiros
-  setup-nvidia.sh        RPM Fusion, NVIDIA, akmods e Secure Boot
-  install-rpm-apps.sh    instalação dos RPMs adicionais
-  install-flatpaks.sh    configuração do Flathub e Flatpaks
-  disable-services.sh    serviços não utilizados
-  post-install.sh        orquestrador pós-instalação
-  verify.sh              checagem rápida do ambiente
+  setup-repositories.sh   repositórios de terceiros
+  setup-nvidia.sh         RPM Fusion, NVIDIA, akmods e Secure Boot
+  install-rpm-apps.sh     instalação dos RPMs adicionais
+  install-flatpaks.sh     configuração do Flathub e Flatpaks
+  disable-services.sh     serviços não utilizados
+  post-install.sh         orquestrador pós-instalação
+  verify.sh               checagem rápida do ambiente
 build/
-  build-iso.sh           gera a imagem Live com livemedia-creator em UEFI
-  README.md              instruções de geração da mídia
+  build-iso.sh            gera a imagem Live com livemedia-creator em UEFI
+  README.md               instruções de geração da mídia
 docs/
-  NVIDIA-SECURE-BOOT.md  fluxo detalhado do driver NVIDIA e MOK
-  SYSTEMD-BOOT.md        arquitetura, Secure Boot e limitações do systemd-boot
-  VALIDATION.md          premissas técnicas validadas para o projeto
+  CI.md                   GitHub Actions, releases e fluxo de testes
+  NVIDIA-SECURE-BOOT.md   fluxo detalhado do driver NVIDIA e MOK
+  SYSTEMD-BOOT.md         arquitetura, Secure Boot e limitações do systemd-boot
+  VALIDATION.md           premissas técnicas validadas para o projeto
 ```
 
 ## Instalação e recuperação
@@ -72,26 +77,35 @@ Documentação detalhada: [`docs/SYSTEMD-BOOT.md`](docs/SYSTEMD-BOOT.md).
 
 ## Gerar a mídia
 
-1. Baixe uma ISO Fedora Everything/netinstall da mesma versão alvo.
-2. Instale as ferramentas de composição:
+O método preferencial é o GitHub Actions. Em **Actions → Build ISO → Run workflow**, mantenha os valores padrão para Fedora 44 e execute o job.
+
+Por padrão, uma execução manual bem-sucedida cria uma prerelease `build-<número>` contendo:
+
+```text
+fedora-gnome-minimal.iso
+fedora-gnome-minimal.iso.sha256
+```
+
+O workflow baixa a Fedora Everything oficial, valida o SHA-256 antes do build e executa `livemedia-creator` dentro de um container Fedora da mesma versão alvo.
+
+Tags `v*`, por exemplo `v44.1`, também disparam o build e publicam a ISO na Release correspondente.
+
+Documentação completa: [`docs/CI.md`](docs/CI.md).
+
+### Build local opcional
+
+O build local continua disponível para diagnóstico ou quando for necessário comparar o comportamento do runner:
 
 ```bash
 sudo dnf install lorax lorax-lmc-virt
-```
-
-3. Gere a imagem:
-
-```bash
 sudo bash ./build/build-iso.sh /caminho/Fedora-Everything-netinst.iso
 ```
 
-4. A saída será:
+A saída será:
 
 ```text
 dist/fedora-gnome-minimal.iso
 ```
-
-5. Grave a ISO em um pendrive e inicialize normalmente em UEFI.
 
 ## Pós-instalação
 

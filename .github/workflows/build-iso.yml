@@ -1,0 +1,216 @@
+name: Build ISO
+
+on:
+  workflow_dispatch:
+    inputs:
+      fedora_release:
+        description: Fedora release used by the build container and source ISO
+        required: true
+        default: "44"
+        type: string
+      compose:
+        description: Fedora compose identifier used in the source ISO filename
+        required: true
+        default: "1.7"
+        type: string
+      iso_url:
+        description: Optional explicit Fedora Everything netinstall URL
+        required: false
+        default: ""
+        type: string
+      iso_sha256:
+        description: SHA256 of the source ISO; Fedora 44/1.7 is filled automatically
+        required: false
+        default: ""
+        type: string
+      publish_release:
+        description: Publish the ISO as a GitHub prerelease instead of a temporary Actions artifact
+        required: true
+        default: true
+        type: boolean
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: iso-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FEDORA_RELEASE: ${{ inputs.fedora_release || '44' }}
+  FEDORA_COMPOSE: ${{ inputs.compose || '1.7' }}
+
+jobs:
+  build:
+    name: Fedora ${{ inputs.fedora_release || '44' }} x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup || true
+          docker system prune -af || true
+          df -h /
+
+      - name: Resolve Fedora source ISO
+        id: source
+        shell: bash
+        env:
+          INPUT_URL: ${{ inputs.iso_url || '' }}
+          INPUT_SHA256: ${{ inputs.iso_sha256 || '' }}
+        run: |
+          set -euo pipefail
+
+          url="$INPUT_URL"
+          sha256="$INPUT_SHA256"
+
+          if [[ -z "$url" ]]; then
+            url="https://download.fedoraproject.org/pub/fedora/linux/releases/${FEDORA_RELEASE}/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-${FEDORA_RELEASE}-${FEDORA_COMPOSE}.iso"
+          fi
+
+          if [[ -z "$sha256" ]]; then
+            if [[ "$FEDORA_RELEASE" == "44" && "$FEDORA_COMPOSE" == "1.7" ]]; then
+              sha256="bd285201494dd0ba09b54d05ac707de1401668b8512a573edb5922dcf9d7067e"
+            else
+              echo "::error::Informe iso_sha256 para Fedora ${FEDORA_RELEASE}/${FEDORA_COMPOSE}. O workflow não aceita uma ISO sem checksum conhecido."
+              exit 2
+            fi
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify Fedora Everything
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p cache
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output cache/Fedora-Everything-netinst.iso \
+            '${{ steps.source.outputs.url }}'
+          echo '${{ steps.source.outputs.sha256 }}  cache/Fedora-Everything-netinst.iso' | sha256sum -c -
+          ls -lh cache/Fedora-Everything-netinst.iso
+
+      - name: Inspect virtualization support
+        shell: bash
+        run: |
+          if [[ -e /dev/kvm ]]; then
+            echo "KVM disponível no runner. O build usará aceleração de hardware."
+            ls -l /dev/kvm
+          else
+            echo "::warning::/dev/kvm não está disponível. O libvirt/QEMU poderá cair para emulação por software e o build pode ser muito mais lento."
+          fi
+
+      - name: Build Fedora GNOME Minimal in Fedora container
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kvm_args=()
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod 666 /dev/kvm
+            kvm_args+=(--device=/dev/kvm)
+          fi
+
+          docker run --rm \
+            --privileged \
+            "${kvm_args[@]}" \
+            --security-opt label=disable \
+            -v "$PWD:/work" \
+            -w /work \
+            "fedora:${FEDORA_RELEASE}" \
+            bash -lc '
+              set -euo pipefail
+              dnf install -y \
+                lorax \
+                lorax-lmc-virt \
+                edk2-ovmf \
+                libvirt-client \
+                libvirt-daemon-kvm
+
+              mkdir -p /run/libvirt
+              if command -v libvirtd >/dev/null 2>&1; then
+                libvirtd -d
+              elif command -v virtqemud >/dev/null 2>&1; then
+                virtqemud -d
+              fi
+
+              sleep 2
+              virsh -c qemu:///system list || true
+              bash ./build/build-iso.sh /work/cache/Fedora-Everything-netinst.iso
+            '
+
+      - name: Normalize ownership and create checksum
+        if: always()
+        shell: bash
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" dist cache 2>/dev/null || true
+          if [[ -f dist/fedora-gnome-minimal.iso ]]; then
+            sha256sum dist/fedora-gnome-minimal.iso > dist/fedora-gnome-minimal.iso.sha256
+            ls -lh dist/fedora-gnome-minimal.iso dist/fedora-gnome-minimal.iso.sha256
+          fi
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.run_number }}
+          path: |
+            dist/lmc/**/*.log
+            dist/lmc/**/virt-install.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload temporary ISO artifact
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && !inputs.publish_release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedora-gnome-minimal-${{ env.FEDORA_RELEASE }}
+          path: |
+            dist/fedora-gnome-minimal.iso
+            dist/fedora-gnome-minimal.iso.sha256
+          compression-level: 0
+          retention-days: 1
+
+      - name: Publish manual build as prerelease
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: build-${{ github.run_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" \
+            dist/fedora-gnome-minimal.iso \
+            dist/fedora-gnome-minimal.iso.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "Fedora GNOME Minimal build #${GITHUB_RUN_NUMBER}" \
+            --notes "Automated Fedora ${FEDORA_RELEASE} test build from ${GITHUB_SHA}. Source: Fedora Everything ${FEDORA_RELEASE}-${FEDORA_COMPOSE} x86_64." \
+            --prerelease
+
+      - name: Publish tagged release
+        if: ${{ success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              dist/fedora-gnome-minimal.iso \
+              dist/fedora-gnome-minimal.iso.sha256 \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist/fedora-gnome-minimal.iso \
+              dist/fedora-gnome-minimal.iso.sha256 \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi
