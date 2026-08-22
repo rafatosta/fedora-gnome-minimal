@@ -5,14 +5,26 @@ Registro das premissas verificadas para o Fedora GNOME Minimal.
 ## systemd-boot
 
 - O Anaconda oferece `inst.sdboot` e `bootloader --sdboot`.
-- Em Live installs, `systemd-boot` só pode ser usado quando a própria Live image foi construída com ele.
-- O projeto portanto compõe a imagem em UEFI com `livemedia-creator --virt-uefi` e mantém uma ESP no disco temporário de build.
+- A documentação do Anaconda informa que `inst.sdboot` funciona diretamente em instalações **baseadas em pacotes**, nas quais o bootloader pode ser escolhido no momento da instalação.
+- Em Live installs, `systemd-boot` só pode ser usado quando a própria Live image foi construída com ele em vez de GRUB.
+- Os protótipos Live deste projeto conseguiram gerar e iniciar a mídia, mas a instalação final continuou criando uma entrada UEFI para shim/GRUB. Por isso a arquitetura Live foi abandonada.
+- A arquitetura atual usa Fedora Everything netinstall + `mkksiso`, com `inst.sdboot` na linha de comando e `bootloader --sdboot` no Kickstart.
 - O pacote Fedora `systemd-boot` é usado porque é a variante apropriada para Secure Boot; `systemd-boot-unsigned` não deve ser usado neste projeto.
-- O suporte não é o padrão Fedora e é tratado pelo Anaconda como alternativa para testes/desenvolvimento. Validar novamente a cada nova versão major do Fedora.
+- O suporte não é o padrão Fedora e deve ser validado novamente a cada nova versão major do Fedora.
+
+## Package-based / netinstall
+
+- A mídia preserva o runtime oficial da Fedora Everything netinstall.
+- `mkksiso` incorpora o Kickstart e atualiza as configurações de boot da ISO, inclusive a imagem EFI embutida quando executado com os privilégios necessários.
+- A instalação baixa os pacotes da árvore Fedora Everything; portanto conectividade de rede faz parte dos requisitos da mídia atual.
+- O Kickstart não contém comandos de particionamento, para que a configuração de armazenamento continue interativa.
+- `inst.pauseatsummary` é usado para impedir início automático antes da confirmação final do usuário.
 
 ## Anaconda WebUI e reinstalação
 
-A WebUI permanece responsável pelo armazenamento do computador final. A opção `Reinstall Fedora` preserva a home e os dados do usuário quando exatamente uma instalação Fedora compatível é detectada e o sistema usa apenas os pontos de montagem padrão esperados pelo Anaconda.
+A mídia solicita o perfil `fedora-workstation` por `inst.profile=fedora-workstation` para manter o comportamento e a experiência da WebUI associados ao Workstation.
+
+A WebUI permanece responsável pelo armazenamento do computador final. A opção `Reinstall Fedora` preserva a home e os dados do usuário quando uma instalação Fedora compatível é detectada e o layout satisfaz os critérios do Anaconda.
 
 O projeto não presume que essa opção estará sempre disponível. Se a WebUI não a oferecer, a reinstalação deve ser feita por atribuição manual de pontos de montagem com revisão cuidadosa antes de formatar qualquer volume.
 
