@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<comps>
+  <group>
+    <id>fedora-gnome-minimal</id>
+    <name>Fedora GNOME Minimal</name>
+    <description>Minimal GNOME desktop for Fedora GNOME Minimal.</description>
+    <default>true</default>
+    <uservisible>true</uservisible>
+    <packagelist>
+      <packagereq type="mandatory">kernel</packagereq>
+      <packagereq type="mandatory">kernel-modules</packagereq>
+      <packagereq type="mandatory">kernel-modules-extra</packagereq>
+      <packagereq type="mandatory">systemd-boot</packagereq>
+      <packagereq type="mandatory">fedora-release-workstation</packagereq>
+      <packagereq type="mandatory">fedora-logos</packagereq>
+      <packagereq type="mandatory">glibc-all-langpacks</packagereq>
+      <packagereq type="mandatory">gdm</packagereq>
+      <packagereq type="mandatory">gnome-shell</packagereq>
+      <packagereq type="mandatory">gnome-session</packagereq>
+      <packagereq type="mandatory">gnome-control-center</packagereq>
+      <packagereq type="mandatory">gnome-settings-daemon</packagereq>
+      <packagereq type="mandatory">gnome-keyring</packagereq>
+      <packagereq type="mandatory">gnome-initial-setup</packagereq>
+      <packagereq type="mandatory">nautilus</packagereq>
+      <packagereq type="mandatory">gnome-software</packagereq>
+      <packagereq type="mandatory">xdg-desktop-portal</packagereq>
+      <packagereq type="mandatory">xdg-desktop-portal-gnome</packagereq>
+      <packagereq type="mandatory">xdg-user-dirs</packagereq>
+      <packagereq type="mandatory">xdg-user-dirs-gtk</packagereq>
+      <packagereq type="mandatory">polkit</packagereq>
+      <packagereq type="mandatory">NetworkManager</packagereq>
+      <packagereq type="mandatory">NetworkManager-wifi</packagereq>
+      <packagereq type="mandatory">bluez</packagereq>
+      <packagereq type="mandatory">bluez-tools</packagereq>
+      <packagereq type="mandatory">pipewire</packagereq>
+      <packagereq type="mandatory">pipewire-alsa</packagereq>
+      <packagereq type="mandatory">pipewire-pulseaudio</packagereq>
+      <packagereq type="mandatory">wireplumber</packagereq>
+      <packagereq type="mandatory">upower</packagereq>
+      <packagereq type="mandatory">udisks2</packagereq>
+      <packagereq type="mandatory">firewalld</packagereq>
+      <packagereq type="mandatory">flatpak</packagereq>
+      <packagereq type="mandatory">fwupd</packagereq>
+      <packagereq type="mandatory">gvfs</packagereq>
+      <packagereq type="mandatory">gvfs-afc</packagereq>
+      <packagereq type="mandatory">gvfs-goa</packagereq>
+      <packagereq type="mandatory">gvfs-gphoto2</packagereq>
+      <packagereq type="mandatory">gvfs-mtp</packagereq>
+      <packagereq type="mandatory">gvfs-smb</packagereq>
+      <packagereq type="mandatory">xdg-utils</packagereq>
+      <packagereq type="mandatory">bash-completion</packagereq>
+      <packagereq type="mandatory">dnf5</packagereq>
+      <packagereq type="mandatory">sudo</packagereq>
+      <packagereq type="mandatory">curl</packagereq>
+      <packagereq type="mandatory">wget</packagereq>
+      <packagereq type="mandatory">git</packagereq>
+      <packagereq type="mandatory">rsync</packagereq>
+      <packagereq type="mandatory">pciutils</packagereq>
+      <packagereq type="mandatory">usbutils</packagereq>
+      <packagereq type="mandatory">lsof</packagereq>
+      <packagereq type="mandatory">htop</packagereq>
+      <packagereq type="mandatory">nodejs</packagereq>
+      <packagereq type="mandatory">python3-pip</packagereq>
+      <packagereq type="mandatory">adw-gtk3-theme</packagereq>
+      <packagereq type="mandatory">gnome-shell-extension-user-theme</packagereq>
+      <packagereq type="mandatory">gnome-shell-extension-appindicator</packagereq>
+    </packagelist>
+  </group>
+
+  <environment>
+    <id>fedora-gnome-minimal-environment</id>
+    <name>Fedora GNOME Minimal</name>
+    <description>Fedora with a minimal GNOME desktop and the Fedora GNOME Minimal package set.</description>
+    <display_order>1</display_order>
+    <grouplist>
+      <groupid>fedora-gnome-minimal</groupid>
+    </grouplist>
+  </environment>
+</comps>
