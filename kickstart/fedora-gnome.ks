@@ -4,6 +4,9 @@
 # a mídia Live. As diretivas de particionamento abaixo atuam somente no disco
 # temporário da construção da imagem; NÃO definem o particionamento do PC do
 # usuário. A instalação final permanece interativa pela WebUI do Anaconda.
+#
+# O projeto usa systemd-boot deliberadamente. Para Live installs o Anaconda
+# exige que a própria imagem tenha sido construída com systemd-boot.
 
 graphical
 lang pt_BR.UTF-8
@@ -15,9 +18,13 @@ selinux --enforcing
 firewall --enabled
 shutdown
 
+# systemd-boot: UEFI only. A construção é executada com --virt-uefi.
+bootloader --sdboot
+
 # Disco temporário usado durante a composição da imagem Live.
 zerombr
-clearpart --all --initlabel
+clearpart --all --initlabel --disklabel=gpt
+part /boot/efi --fstype="efi" --size=1024 --fsoptions="umask=0077,shortname=winnt"
 part / --fstype="ext4" --size=12288
 
 %packages --excludedocs
@@ -31,6 +38,9 @@ kernel-modules-extra
 dracut-live
 livesys-scripts
 glibc-all-langpacks
+
+# systemd-boot assinado para Secure Boot (não usar systemd-boot-unsigned)
+systemd-boot
 
 # Instalador Fedora / WebUI usada pelo Workstation
 anaconda
