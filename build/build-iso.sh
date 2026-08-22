@@ -7,7 +7,7 @@ command -v pungi-koji >/dev/null 2>&1 || {
   exit 1
 }
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}\")" && pwd)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 CONF="$ROOT_DIR/compose/fedora-gnome-minimal.conf"
 TARGET_DIR="$ROOT_DIR/dist/pungi"
@@ -17,7 +17,7 @@ LOGFILE="$ROOT_DIR/dist/pungi.log"
 [[ -f "$CONF" ]] || { echo "Configuração Pungi não encontrada: $CONF" >&2; exit 1; }
 
 mkdir -p "$ROOT_DIR/dist" "$TARGET_DIR"
-rm -rf "$TARGET_DIR"/*
+rm -rf "${TARGET_DIR:?}/"*
 rm -f "$OUTPUT_ISO" "$LOGFILE"
 
 # Pungi executa o fluxo de compose documentado para mídia package-based:
