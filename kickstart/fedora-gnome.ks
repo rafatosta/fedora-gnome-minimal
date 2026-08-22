@@ -153,6 +153,36 @@ if [[ -f /etc/sysconfig/livesys ]]; then
   sed -i 's/^livesys_session=.*/livesys_session="gnome"/' /etc/sysconfig/livesys
 fi
 
+# Compatibilidade systemd-boot <-> Lorax.
+#
+# Com bootloader --sdboot o Anaconda mantém o kernel no layout usado pelo
+# systemd-boot/UKI e não regenera um initramfs tradicional em /boot. A etapa
+# posterior do livemedia-creator, porém, ainda usa pylorax.findkernels(), que
+# procura especificamente /boot/vmlinuz-<versão> para reconstruir o initramfs
+# da própria mídia Live. Sem esta ponte a instalação no QEMU termina com sucesso,
+# mas a composição aborta com "No kernels found, cannot rebuild_initrds".
+#
+# Copiamos apenas o vmlinuz já instalado para o nome convencional esperado pelo
+# Lorax. Isso não troca o bootloader nem cria configuração GRUB: o sistema segue
+# usando systemd-boot e a cópia serve como entrada para a geração da mídia Live.
+lorax_kernel_count=0
+for kernel_dir in /usr/lib/modules/*; do
+  [[ -d "$kernel_dir" ]] || continue
+  kernel_version="${kernel_dir##*/}"
+  kernel_source="$kernel_dir/vmlinuz"
+
+  if [[ -f "$kernel_source" ]]; then
+    install -m 0644 "$kernel_source" "/boot/vmlinuz-$kernel_version"
+    echo "Lorax kernel bridge: /boot/vmlinuz-$kernel_version"
+    lorax_kernel_count=$((lorax_kernel_count + 1))
+  fi
+done
+
+if [[ "$lorax_kernel_count" -eq 0 ]]; then
+  echo "ERRO: nenhum kernel encontrado em /usr/lib/modules/*/vmlinuz para compatibilidade com o Lorax." >&2
+  exit 1
+fi
+
 # O sistema instalado deve gerar sua própria identidade.
 rm -f /etc/machine-id
 : > /etc/machine-id
