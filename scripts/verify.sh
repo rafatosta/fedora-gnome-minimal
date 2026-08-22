@@ -12,7 +12,7 @@ check_cmd() {
   fi
 }
 
-for cmd in dnf flatpak git node python3 mokutil; do check_cmd "$cmd"; done
+for cmd in dnf flatpak git node python3 mokutil bootctl; do check_cmd "$cmd"; done
 
 printf '\nDisplay manager: '
 systemctl is-enabled gdm.service 2>/dev/null || true
@@ -20,6 +20,17 @@ printf 'Target padrão: '
 systemctl get-default 2>/dev/null || true
 printf 'GNOME: '
 gnome-shell --version 2>/dev/null || true
+
+printf '\nBoot manager: '
+if command -v bootctl >/dev/null 2>&1; then
+  bootctl status 2>/dev/null | sed -n '1,12p' || true
+else
+  echo 'bootctl não encontrado'
+  fail=1
+fi
+
+printf '\nESP: '
+findmnt /boot/efi 2>/dev/null || echo '/boot/efi não montado/detectado'
 
 printf '\nSecure Boot: '
 mokutil --sb-state 2>/dev/null || true

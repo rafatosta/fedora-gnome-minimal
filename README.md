@@ -6,10 +6,12 @@ A proposta é substituir o modelo "instalar Fedora Workstation completo e depois
 
 - Fedora tradicional, administrado com `dnf`;
 - GNOME funcional, sem depender do conjunto completo do Workstation;
-- imagem **Live** própria, em vez de um Kickstart de instalação injetado em `boot.iso`;
+- imagem **Live** própria;
 - **Anaconda WebUI**, como no Fedora Workstation atual;
 - armazenamento decidido pelo usuário no instalador;
 - possibilidade de `Reinstall Fedora` quando o layout existente é compatível, preservando `/home` e dados pessoais;
+- `systemd-boot` em UEFI, em vez de GRUB, como escolha deliberada do projeto;
+- Secure Boot suportado com o pacote Fedora assinado `systemd-boot`;
 - pacotes RPM essenciais definidos em arquivo;
 - aplicativos Flatpak definidos em arquivo;
 - NVIDIA via RPM Fusion com suporte a Secure Boot e assinatura automática por `akmods`;
@@ -32,10 +34,12 @@ scripts/
   post-install.sh        orquestrador pós-instalação
   verify.sh              checagem rápida do ambiente
 build/
-  build-iso.sh           gera a imagem Live com livemedia-creator
+  build-iso.sh           gera a imagem Live com livemedia-creator em UEFI
   README.md              instruções de geração da mídia
 docs/
   NVIDIA-SECURE-BOOT.md  fluxo detalhado do driver NVIDIA e MOK
+  SYSTEMD-BOOT.md        arquitetura, Secure Boot e limitações do systemd-boot
+  VALIDATION.md          premissas técnicas validadas para o projeto
 ```
 
 ## Instalação e recuperação
@@ -52,6 +56,19 @@ Ao iniciar o pendrive, a instalação final acontece pela WebUI do Anaconda. Ass
 A opção `Reinstall Fedora` é especialmente importante para este projeto: ela permite reconstruir o sistema mantendo a home e os dados pessoais quando o layout existente atende aos critérios do Anaconda.
 
 > As diretivas `clearpart` e `part` existentes em `kickstart/fedora-gnome.ks` atuam exclusivamente no disco temporário criado durante a **construção da imagem Live** pelo `livemedia-creator`. Elas não são aplicadas ao disco do computador que receberá o Fedora.
+
+## systemd-boot
+
+O projeto usa `systemd-boot` no sistema instalado. Essa não é a configuração padrão do Fedora: o suporte existe no Anaconda, mas a documentação upstream ainda o trata como alternativa para testes/desenvolvimento.
+
+Para Live installs, o Anaconda exige que a própria imagem Live tenha sido construída com `systemd-boot`; por isso:
+
+- o Kickstart usa `bootloader --sdboot`;
+- a composição roda com `livemedia-creator --virt-uefi`;
+- o disco temporário de build possui uma ESP dedicada de 1 GiB;
+- o pacote usado é `systemd-boot`, assinado para Secure Boot, e não `systemd-boot-unsigned`.
+
+Documentação detalhada: [`docs/SYSTEMD-BOOT.md`](docs/SYSTEMD-BOOT.md).
 
 ## Gerar a mídia
 
@@ -74,7 +91,7 @@ sudo bash ./build/build-iso.sh /caminho/Fedora-Everything-netinst.iso
 dist/fedora-gnome-minimal.iso
 ```
 
-5. Grave a ISO em um pendrive e inicialize normalmente.
+5. Grave a ISO em um pendrive e inicialize normalmente em UEFI.
 
 ## Pós-instalação
 
