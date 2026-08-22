@@ -1,42 +1,49 @@
 # Validação técnica
 
-Registro das premissas verificadas para o Fedora GNOME Minimal.
+Registro das premissas do Fedora GNOME Minimal.
+
+## Compose da distribuição
+
+- Pungi é usado para organizar a composição da distribuição.
+- `pkgset_source = "repos"` permite consumir repositórios Yum/DNF arbitrários; o projeto usa os repositórios oficiais do Fedora.
+- `comps.xml` define o grupo/ambiente de software da variante.
+- `variants.xml` limita a distribuição à variante Fedora GNOME Minimal em x86_64.
+- `gather` resolve dependências, `createrepo` gera o repositório da variante, `buildinstall` chama Lorax e `createiso` produz a mídia bootável completa.
+- A ISO final é package-based e contém o repositório RPM; não é Live nem netinstall modificada.
 
 ## systemd-boot
 
-- O Anaconda oferece `inst.sdboot` e `bootloader --sdboot`.
-- A documentação do Anaconda informa que `inst.sdboot` funciona diretamente em instalações **baseadas em pacotes**, nas quais o bootloader pode ser escolhido no momento da instalação.
-- Em Live installs, `systemd-boot` só pode ser usado quando a própria Live image foi construída com ele em vez de GRUB.
-- Os protótipos Live deste projeto conseguiram gerar e iniciar a mídia, mas a instalação final continuou criando uma entrada UEFI para shim/GRUB. Por isso a arquitetura Live foi abandonada.
-- A arquitetura atual usa Fedora Everything netinstall + `mkksiso`, com `inst.sdboot` na linha de comando e `bootloader --sdboot` no Kickstart.
-- O pacote Fedora `systemd-boot` é usado porque é a variante apropriada para Secure Boot; `systemd-boot-unsigned` não deve ser usado neste projeto.
-- O suporte não é o padrão Fedora e deve ser validado novamente a cada nova versão major do Fedora.
+- O Anaconda oferece `bootloader --sdboot` para instalações package-based.
+- A escolha do bootloader do sistema final é independente da infraestrutura de boot usada pelo Lorax na própria ISO.
+- O pacote `systemd-boot` é incluído no ambiente; `systemd-boot-unsigned` não é usado.
+- O suporte deve ser revalidado a cada versão major do Fedora.
 
-## Package-based / netinstall
+## Armazenamento
 
-- A mídia preserva o runtime oficial da Fedora Everything netinstall.
-- `mkksiso` incorpora o Kickstart e atualiza as configurações de boot da ISO, inclusive a imagem EFI embutida quando executado com os privilégios necessários.
-- A instalação baixa os pacotes da árvore Fedora Everything; portanto conectividade de rede faz parte dos requisitos da mídia atual.
-- O Kickstart não contém comandos de particionamento, para que a configuração de armazenamento continue interativa.
-- `inst.pauseatsummary` é usado para impedir início automático antes da confirmação final do usuário.
+- O Kickstart não contém `clearpart`, `autopart`, `part` ou `partition`.
+- O Anaconda gráfico clássico continua responsável pelo armazenamento.
+- Uma `/home` existente pode ser atribuída manualmente sem formatação.
+- Toda reinstalação deve revisar explicitamente os pontos de montagem e flags de formatação antes da confirmação.
 
-## Anaconda WebUI e reinstalação
+## Primeiro usuário
 
-A mídia solicita o perfil `fedora-workstation` por `inst.profile=fedora-workstation` para manter o comportamento e a experiência da WebUI associados ao Workstation.
-
-A WebUI permanece responsável pelo armazenamento do computador final. A opção `Reinstall Fedora` preserva a home e os dados do usuário quando uma instalação Fedora compatível é detectada e o layout satisfaz os critérios do Anaconda.
-
-O projeto não presume que essa opção estará sempre disponível. Se a WebUI não a oferecer, a reinstalação deve ser feita por atribuição manual de pontos de montagem com revisão cuidadosa antes de formatar qualquer volume.
+- O Kickstart mantém `rootpw --lock`.
+- Não existe diretiva `user`.
+- O ambiente inclui `gdm`, GNOME e `gnome-initial-setup`.
+- O sistema final usa `graphical.target` e GDM.
+- O resultado esperado é o GNOME Initial Setup criar o primeiro usuário no primeiro boot gráfico, em vez de a instalação criar uma conta temporária.
 
 ## Secure Boot e NVIDIA
 
 A cadeia do bootloader e a assinatura dos módulos NVIDIA são independentes:
 
-- `systemd-boot` usa o binário assinado fornecido pelo Fedora;
-- módulos NVIDIA são compilados pelo `akmods` e assinados com a chave MOK local;
-- a inscrição inicial da chave MOK continua sendo confirmada interativamente no reboot.
+- systemd-boot usa o binário fornecido pelo Fedora;
+- NVIDIA usa `akmods` e MOK local;
+- a inscrição da MOK permanece interativa no reboot.
 
 ## Verificação pós-instalação
+
+Depois que o primeiro usuário for criado:
 
 ```bash
 bootctl status

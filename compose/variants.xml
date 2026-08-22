@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<variants>
+  <variant id="Minimal" name="Fedora GNOME Minimal" type="variant" has_optional="false">
+    <arches>
+      <arch>x86_64</arch>
+    </arches>
+    <groups>
+      <group default="true">fedora-gnome-minimal</group>
+    </groups>
+    <environments>
+      <environment display_order="1">fedora-gnome-minimal-environment</environment>
+    </environments>
+  </variant>
+</variants>

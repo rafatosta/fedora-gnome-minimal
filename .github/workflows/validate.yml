@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   validate:
-    name: Shell, Kickstart and manifests
+    name: Shell, Kickstart, compose and manifests
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +31,7 @@ jobs:
             fedora:44 \
             bash -lc '
               set -euo pipefail
-              dnf install -y ShellCheck pykickstart
+              dnf install -y ShellCheck pykickstart libxml2 pungi pungi-utils dnf5-plugins
 
               while IFS= read -r -d "" script; do
                 echo "bash -n: $script"
@@ -40,6 +40,33 @@ jobs:
 
               shellcheck scripts/*.sh build/*.sh
               ksvalidator kickstart/fedora-gnome.ks
+              xmllint --noout compose/comps.xml compose/variants.xml
+
+              # Valida o schema e a semântica de configuração suportada pelo
+              # Pungi da mesma versão Fedora usada no compose. O utilitário é
+              # distribuído pelo subpacote pungi-utils no Fedora.
+              pungi-config-validate compose/fedora-gnome-minimal.conf
+
+              # Política deliberada: armazenamento interativo e usuário somente
+              # no primeiro boot gráfico via GNOME Initial Setup.
+              if grep -Eq "^[[:space:]]*(clearpart|autopart|part|partition|user)[[:space:]]" kickstart/fedora-gnome.ks; then
+                echo "Kickstart não pode automatizar armazenamento nem criar usuário." >&2
+                exit 1
+              fi
+              grep -Eq "^[[:space:]]*rootpw[[:space:]]+--lock([[:space:]]|$)" kickstart/fedora-gnome.ks
+              grep -q "gnome-initial-setup" compose/comps.xml
+              grep -q "gdm" compose/comps.xml
+              grep -q "bootloader --sdboot" kickstart/fedora-gnome.ks
+
+              # Garante que todos os pacotes obrigatórios do comps existem nos
+              # repositórios Fedora usados para a composição antes do build pesado.
+              mapfile -t comps_packages < <(sed -n "s:.*<packagereq type=\"mandatory\">\([^<]*\)</packagereq>.*:\1:p" compose/comps.xml)
+              for package in "${comps_packages[@]}"; do
+                if ! dnf repoquery --quiet --available "$package" | grep -q .; then
+                  echo "Pacote obrigatório ausente nos repositórios Fedora 44: $package" >&2
+                  exit 1
+                fi
+              done
 
               for manifest in packages/rpm.txt packages/flatpak.txt; do
                 duplicates="$(grep -Ev "^[[:space:]]*(#|$)" "$manifest" | sort | uniq -d)"
