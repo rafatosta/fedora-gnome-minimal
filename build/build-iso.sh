@@ -7,61 +7,57 @@ if [[ $# -ne 1 ]]; then
 fi
 
 [[ ${EUID} -eq 0 ]] || { echo "Execute como root." >&2; exit 1; }
-command -v livemedia-creator >/dev/null 2>&1 || {
-  echo "livemedia-creator não encontrado. Instale lorax e lorax-lmc-virt." >&2
+command -v mkksiso >/dev/null 2>&1 || {
+  echo "mkksiso não encontrado. Instale o pacote lorax." >&2
   exit 1
 }
-
-# systemd-boot é UEFI-only. O build precisa usar firmware UEFI/OVMF.
-if [[ ! -d /usr/share/edk2 ]]; then
-  echo "Firmware UEFI/EDK2 não encontrado em /usr/share/edk2." >&2
-  echo "Instale o pacote de firmware UEFI fornecido pela sua versão do Fedora." >&2
-  exit 1
-fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 INPUT_ISO="$(realpath "$1")"
-RESULT_DIR="$ROOT_DIR/dist/lmc"
 OUTPUT_ISO="$ROOT_DIR/dist/fedora-gnome-minimal.iso"
-LOGFILE="$ROOT_DIR/dist/livemedia-creator.log"
+LOGFILE="$ROOT_DIR/dist/mkksiso.log"
 KS="$ROOT_DIR/kickstart/fedora-gnome.ks"
+FEDORA_RELEASE="${FEDORA_RELEASE:-44}"
+INSTALL_REPO_URL="${INSTALL_REPO_URL:-https://download.fedoraproject.org/pub/fedora/linux/releases/${FEDORA_RELEASE}/Everything/x86_64/os/}"
 
-# livemedia-creator exige que --resultdir NÃO exista ao iniciar.
-# Crie apenas o diretório pai e deixe a própria ferramenta criar RESULT_DIR.
+[[ -f "$INPUT_ISO" ]] || { echo "ISO fonte não encontrada: $INPUT_ISO" >&2; exit 1; }
+[[ -f "$KS" ]] || { echo "Kickstart não encontrado: $KS" >&2; exit 1; }
+
 mkdir -p "$(dirname "$OUTPUT_ISO")"
-rm -rf "$RESULT_DIR"
-rm -f "$LOGFILE"
+rm -f "$OUTPUT_ISO" "$LOGFILE"
 
-# O Kickstart descreve o conteúdo da imagem Live. Ele NÃO é usado para
-# automatizar o particionamento do computador do usuário.
+# Arquitetura package-based:
+# - a Fedora Everything netinstall fornece o runtime oficial do Anaconda;
+# - mkksiso incorpora o Kickstart sem criar/clonar uma imagem Live;
+# - inst.sdboot seleciona systemd-boot na instalação FINAL;
+# - inst.profile=fedora-workstation mantém o perfil/experiência Workstation;
+# - inst.pauseatsummary impede início automático antes da confirmação do usuário;
+# - o repositório de pacotes vem da árvore oficial Fedora Everything.
 #
-# --virt-uefi é obrigatório aqui porque a imagem é construída com
-# systemd-boot e uma EFI System Partition (ESP).
-#
-# --extra-boot-args="inst.sdboot" é igualmente importante: a diretiva
-# `bootloader --sdboot` do Kickstart vale para o sistema temporário criado
-# durante a composição da Live. A instalação interativa posterior possui sua
-# própria execução do Anaconda; por isso a ISO final precisa carregar
-# `inst.sdboot` na linha de comando do kernel para que o sistema instalado pelo
-# usuário também selecione systemd-boot, em vez do bootloader Fedora padrão.
-livemedia-creator \
-  --make-iso \
-  --virt-uefi \
-  --extra-boot-args="inst.sdboot" \
-  --iso="$INPUT_ISO" \
-  --ks="$KS" \
-  --resultdir="$RESULT_DIR" \
-  --logfile="$LOGFILE"
+# O Kickstart não contém comandos de particionamento. A WebUI continua
+# responsável pela configuração de armazenamento no computador de destino.
+BOOT_ARGS="inst.sdboot inst.profile=fedora-workstation inst.pauseatsummary inst.repo=${INSTALL_REPO_URL}"
 
-BUILT_ISO="$RESULT_DIR/images/boot.iso"
-if [[ ! -f "$BUILT_ISO" ]]; then
-  echo "ERRO: livemedia-creator terminou sem produzir $BUILT_ISO" >&2
+{
+  echo "Criando mídia package-based com mkksiso"
+  echo "Fedora: $FEDORA_RELEASE"
+  echo "Fonte de pacotes: $INSTALL_REPO_URL"
+  echo "Argumentos Anaconda: $BOOT_ARGS"
+
+  mkksiso \
+    --cmdline "$BOOT_ARGS" \
+    --ks "$KS" \
+    "$INPUT_ISO" \
+    "$OUTPUT_ISO"
+} 2>&1 | tee "$LOGFILE"
+
+if [[ ! -f "$OUTPUT_ISO" ]]; then
+  echo "ERRO: mkksiso terminou sem produzir $OUTPUT_ISO" >&2
   exit 1
 fi
 
-cp -f "$BUILT_ISO" "$OUTPUT_ISO"
-echo "ISO Live criada em: $OUTPUT_ISO"
-echo "Bootloader alvo: systemd-boot (UEFI)."
-echo "A instalação final usa a WebUI do Anaconda e mantém o armazenamento interativo."
-echo "A ISO inclui inst.sdboot para manter systemd-boot também na instalação final."
+echo "ISO de instalação criada em: $OUTPUT_ISO"
+echo "Modo: package-based (Fedora Everything netinstall + Kickstart)."
+echo "Bootloader alvo da instalação final: systemd-boot (UEFI)."
+echo "Armazenamento final: interativo pela WebUI do Anaconda."
