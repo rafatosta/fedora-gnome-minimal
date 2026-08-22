@@ -31,7 +31,7 @@ jobs:
             fedora:44 \
             bash -lc '
               set -euo pipefail
-              dnf install -y ShellCheck pykickstart libxml2 python3 pungi
+              dnf install -y ShellCheck pykickstart libxml2 pungi
 
               while IFS= read -r -d "" script; do
                 echo "bash -n: $script"
@@ -41,9 +41,9 @@ jobs:
               shellcheck scripts/*.sh build/*.sh
               ksvalidator kickstart/fedora-gnome.ks
               xmllint --noout compose/comps.xml compose/variants.xml
-              python3 -m py_compile compose/fedora-gnome-minimal.conf
 
-              # Valida o schema real do Pungi, não apenas a sintaxe Python.
+              # Valida o schema e a semântica de configuração suportada pelo
+              # Pungi da mesma versão Fedora usada no compose.
               pungi-config-validate compose/fedora-gnome-minimal.conf
 
               # Política deliberada: armazenamento interativo e usuário somente
