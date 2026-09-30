@@ -59,15 +59,26 @@ setup_flathub() {
     https://flathub.org/repo/flathub.flatpakrepo
 }
 
-install_third_party_flatpaks() {
+install_flatpak_manifest() {
+  local file="$1"
   local app
-  setup_flathub
+
+  [[ -f "$file" ]] || {
+    echo "Arquivo não encontrado: $file" >&2
+    exit 1
+  }
 
   while IFS= read -r app; do
     [[ -n "$app" ]] || continue
     echo "Instalando Flatpak: $app"
     flatpak install --system -y --noninteractive flathub "$app"
-  done < <(read_manifest "$REPO_DIR/packages/flatpak/third-party-apps.txt")
+  done < <(read_manifest "$file")
+}
+
+install_flatpaks() {
+  setup_flathub
+  install_flatpak_manifest "$REPO_DIR/packages/flatpak/gnome-apps.txt"
+  install_flatpak_manifest "$REPO_DIR/packages/flatpak/third-party-apps.txt"
 }
 
 show_help() {
@@ -79,7 +90,7 @@ Ações:
   gnome      Instala somente o GNOME mínimo
   repos      Configura os repositórios de terceiros
   apps       Instala Chrome, VS Code e ChatGPT via RPM
-  flatpaks   Instala os aplicativos conhecidos via Flathub
+  flatpaks   Instala Calculadora/Agenda GNOME e aplicativos conhecidos via Flathub
   all        Instala GNOME mínimo + aplicativos de terceiros
   help       Exibe esta ajuda
 
@@ -93,11 +104,11 @@ case "$action" in
   gnome) install_gnome ;;
   repos) setup_repositories ;;
   apps) install_third_party_rpm ;;
-  flatpaks) install_third_party_flatpaks ;;
+  flatpaks) install_flatpaks ;;
   all)
     install_gnome
     install_third_party_rpm
-    install_third_party_flatpaks
+    install_flatpaks
     ;;
   help|-h|--help) show_help ;;
   *)
