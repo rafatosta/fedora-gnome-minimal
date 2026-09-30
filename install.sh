@@ -86,6 +86,10 @@ install_nvidia() {
   bash "$REPO_DIR/scripts/install-nvidia.sh"
 }
 
+configure_boot() {
+  bash "$REPO_DIR/scripts/configure-boot.sh"
+}
+
 show_help() {
   cat <<'EOF'
 Uso:
@@ -97,7 +101,8 @@ Ações:
   apps       Instala Chrome, VS Code e ChatGPT via RPM
   flatpaks   Instala Calculadora/Agenda GNOME e aplicativos conhecidos via Flathub
   nvidia     Instala o driver NVIDIA e prepara o MOK/Secure Boot
-  all        Instala GNOME mínimo + aplicativos de terceiros (não instala o driver NVIDIA)
+  boot       Oculta o GRUB, define timeout 0 e mantém o Plymouth
+  all        Instala GNOME mínimo + aplicativos de terceiros (não instala NVIDIA nem altera o boot)
   help       Exibe esta ajuda
 
 Sem argumentos, instala somente o GNOME mínimo.
@@ -112,6 +117,7 @@ case "$action" in
   apps) install_third_party_rpm ;;
   flatpaks) install_flatpaks ;;
   nvidia) install_nvidia ;;
+  boot) configure_boot ;;
   all)
     install_gnome
     install_third_party_rpm
