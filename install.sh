@@ -41,6 +41,7 @@ install_gnome() {
 
 setup_repositories() {
   echo "Configurando repositórios de terceiros..."
+  bash "$REPO_DIR/repositories/third-party/nvidia.sh"
   bash "$REPO_DIR/repositories/third-party/google-chrome.sh"
   bash "$REPO_DIR/repositories/third-party/vscode.sh"
   bash "$REPO_DIR/repositories/third-party/chatgpt.sh"
@@ -88,7 +89,7 @@ Uso:
 
 Ações:
   gnome      Instala somente o GNOME mínimo
-  repos      Configura os repositórios de terceiros
+  repos      Configura NVIDIA (Workstation), Chrome, VS Code e ChatGPT
   apps       Instala Chrome, VS Code e ChatGPT via RPM
   flatpaks   Instala Calculadora/Agenda GNOME e aplicativos conhecidos via Flathub
   all        Instala GNOME mínimo + aplicativos de terceiros
