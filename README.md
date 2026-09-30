@@ -9,15 +9,55 @@ Instala somente:
 - GNOME Shell
 - GDM
 - Configurações do GNOME
-- Nautilus
-- GNOME Console
+- Nautilus + extensões
+- Ptyxis
 - NetworkManager
 - PipeWire + WirePlumber
 - Portais desktop necessários para Wayland/Flatpak
 - GNOME Keyring / Polkit
 - suporte básico a volumes, MTP e câmeras
 
-Não instala, por padrão, GNOME Software, Calendário, Contatos, Mapas, Clima, Evolution ou outros aplicativos do GNOME.
+Não instala, por padrão, GNOME Software, Contatos, Mapas, Clima, Evolution ou outros aplicativos do GNOME.
+
+## Personalização do GNOME
+
+O projeto reaproveita as personalizações do repositório `postinstall-fedora`.
+
+### Tema de ícones
+
+Instala e ativa o tema pessoal **LinuxMidnight** a partir de:
+
+```text
+https://github.com/rafatosta/LinuxMidnight-icon-theme
+```
+
+A instalação é feita no perfil do usuário em `~/.local/share/icons/LinuxMidnight`.
+
+Para instalar somente o tema:
+
+```bash
+sudo ./install.sh icons
+```
+
+### Preferências do GNOME
+
+A ação `settings` aplica:
+
+- colagem da seleção primária com botão do meio ativada;
+- suspensão automática desativada quando conectado à tomada;
+- suspensão automática após 30 minutos quando usando bateria.
+
+```bash
+sudo ./install.sh settings
+```
+
+Para aplicar tema e preferências de uma vez:
+
+```bash
+sudo ./install.sh personalize
+```
+
+O script aplica as configurações ao usuário que executou `sudo`, e não à conta `root`. Se a sessão GNOME ainda não estiver ativa, utiliza uma sessão D-Bus temporária para gravar as preferências no perfil do usuário.
 
 ## Aplicativos de terceiros
 
@@ -127,7 +167,7 @@ nvidia-smi
 sudo ./install.sh all
 ```
 
-A opção `all` instala o GNOME mínimo, configura os repositórios de terceiros, instala os aplicativos RPM e depois os aplicativos Flatpak. **O driver NVIDIA fica propositalmente fora dessa sequência.**
+A opção `all` instala o GNOME mínimo, configura os repositórios de terceiros, instala os aplicativos RPM e Flatpak e aplica o tema LinuxMidnight e as preferências do GNOME. **O driver NVIDIA e a alteração do boot ficam propositalmente fora dessa sequência.**
 
 ## Atualizações
 
