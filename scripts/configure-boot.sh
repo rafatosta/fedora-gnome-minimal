@@ -28,11 +28,23 @@ echo "Configurando GRUB para boot imediato e menu oculto..."
 set_grub_value "GRUB_TIMEOUT" "0"
 set_grub_value "GRUB_TIMEOUT_STYLE" "hidden"
 
-# Mantém o Plymouth/splash gráfico do Fedora.
+if rpm -q plymouth >/dev/null 2>&1; then
+  desired_args=(quiet rhgb)
+  echo "Plymouth detectado: mantendo splash gráfico com quiet + rhgb."
+else
+  desired_args=(quiet)
+  echo "Plymouth não instalado: usando apenas quiet."
+fi
+
 if grep -q '^GRUB_CMDLINE_LINUX=' "$GRUB_DEFAULT_FILE"; then
   current_cmdline="$(sed -n 's/^GRUB_CMDLINE_LINUX="\(.*\)"/\1/p' "$GRUB_DEFAULT_FILE")"
 
-  for arg in quiet rhgb; do
+  # Remove rhgb quando Plymouth não estiver instalado.
+  if ! rpm -q plymouth >/dev/null 2>&1; then
+    current_cmdline="$(printf '%s\n' "$current_cmdline" | sed -E 's/(^|[[:space:]])rhgb([[:space:]]|$)/ /g; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
+  fi
+
+  for arg in "${desired_args[@]}"; do
     if [[ " $current_cmdline " != *" $arg "* ]]; then
       current_cmdline="${current_cmdline:+$current_cmdline }$arg"
     fi
@@ -40,7 +52,7 @@ if grep -q '^GRUB_CMDLINE_LINUX=' "$GRUB_DEFAULT_FILE"; then
 
   sed -i "s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$current_cmdline\"|" "$GRUB_DEFAULT_FILE"
 else
-  printf '\nGRUB_CMDLINE_LINUX="quiet rhgb"\n' >> "$GRUB_DEFAULT_FILE"
+  printf '\nGRUB_CMDLINE_LINUX="%s"\n' "${desired_args[*]}" >> "$GRUB_DEFAULT_FILE"
 fi
 
 echo "Regenerando a configuração do GRUB..."
@@ -50,4 +62,8 @@ echo
 echo "Boot configurado:"
 echo "  GRUB_TIMEOUT=0"
 echo "  GRUB_TIMEOUT_STYLE=hidden"
-echo "  Plymouth mantido por quiet + rhgb"
+if rpm -q plymouth >/dev/null 2>&1; then
+  echo "  Plymouth detectado: quiet + rhgb"
+else
+  echo "  Plymouth ausente: quiet"
+fi
