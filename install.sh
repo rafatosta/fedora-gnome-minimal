@@ -90,20 +90,35 @@ configure_boot() {
   bash "$REPO_DIR/scripts/configure-boot.sh"
 }
 
+install_icons() {
+  bash "$REPO_DIR/scripts/personalize-gnome.sh" icons
+}
+
+configure_gnome() {
+  bash "$REPO_DIR/scripts/personalize-gnome.sh" settings
+}
+
+personalize_gnome() {
+  bash "$REPO_DIR/scripts/personalize-gnome.sh" all
+}
+
 show_help() {
   cat <<'EOF'
 Uso:
   sudo ./install.sh [ação]
 
 Ações:
-  gnome      Instala somente o GNOME mínimo
-  repos      Configura NVIDIA (Workstation), Chrome, VS Code e ChatGPT
-  apps       Instala Chrome, VS Code e ChatGPT via RPM
-  flatpaks   Instala Calculadora/Agenda GNOME e aplicativos conhecidos via Flathub
-  nvidia     Instala o driver NVIDIA e prepara o MOK/Secure Boot
-  boot       Oculta o GRUB, define timeout 0 e mantém o Plymouth
-  all        Instala GNOME mínimo + aplicativos de terceiros (não instala NVIDIA nem altera o boot)
-  help       Exibe esta ajuda
+  gnome        Instala somente o GNOME mínimo
+  repos        Configura NVIDIA (Workstation), Chrome, VS Code e ChatGPT
+  apps         Instala Chrome, VS Code e ChatGPT via RPM
+  flatpaks     Instala Calculadora/Agenda GNOME e aplicativos conhecidos via Flathub
+  icons        Instala e ativa o tema de ícones LinuxMidnight
+  settings     Aplica as preferências pessoais do GNOME
+  personalize  Instala LinuxMidnight e aplica as preferências do GNOME
+  nvidia       Instala o driver NVIDIA e prepara o MOK/Secure Boot
+  boot         Oculta o GRUB, define timeout 0 e configura quiet/rhgb conforme o Plymouth
+  all          Instala GNOME mínimo + aplicativos + personalização (não instala NVIDIA nem altera o boot)
+  help         Exibe esta ajuda
 
 Sem argumentos, instala somente o GNOME mínimo.
 EOF
@@ -116,12 +131,16 @@ case "$action" in
   repos) setup_repositories ;;
   apps) install_third_party_rpm ;;
   flatpaks) install_flatpaks ;;
+  icons) install_icons ;;
+  settings) configure_gnome ;;
+  personalize) personalize_gnome ;;
   nvidia) install_nvidia ;;
   boot) configure_boot ;;
   all)
     install_gnome
     install_third_party_rpm
     install_flatpaks
+    personalize_gnome
     ;;
   help|-h|--help) show_help ;;
   *)
