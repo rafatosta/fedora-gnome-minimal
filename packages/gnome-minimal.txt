@@ -6,7 +6,8 @@ gnome-control-center
 
 # Aplicativos essenciais
 nautilus
-gnome-console
+nautilus-extensions
+ptyxis
 
 # Rede
 NetworkManager
