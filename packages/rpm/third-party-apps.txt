@@ -1,0 +1,4 @@
+# Aplicativos de terceiros instalados via RPM/repositórios próprios.
+google-chrome-stable
+code
+chatgpt
