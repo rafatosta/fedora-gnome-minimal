@@ -1,0 +1,32 @@
+# Sessão GNOME
+gnome-shell
+gnome-session
+gdm
+gnome-control-center
+
+# Aplicativos essenciais
+nautilus
+gnome-console
+
+# Rede
+NetworkManager
+NetworkManager-wifi
+
+# Áudio
+pipewire
+pipewire-pulseaudio
+wireplumber
+
+# Portais / integração Wayland e Flatpak
+xdg-desktop-portal
+xdg-desktop-portal-gnome
+
+# Integrações básicas do desktop
+gnome-keyring
+polkit
+
+# Utilitários essenciais
+gvfs
+gvfs-mtp
+gvfs-gphoto2
+udisks2
