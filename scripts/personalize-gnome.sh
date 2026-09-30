@@ -8,7 +8,7 @@ fi
 
 TARGET_USER="${SUDO_USER:-}"
 if [[ -z "$TARGET_USER" || "$TARGET_USER" == "root" ]]; then
-  echo "Não foi possível identificar o usuário da sessão GNOME. Execute via sudo a partir da sua conta de usuário." >&2
+  echo "Não foi possível identificar o usuário alvo. Execute via sudo a partir da sua conta de usuário." >&2
   exit 1
 fi
 
@@ -22,9 +22,21 @@ run_as_user() {
     HOME="$TARGET_HOME" \
     USER="$TARGET_USER" \
     LOGNAME="$TARGET_USER" \
-    XDG_RUNTIME_DIR="$TARGET_RUNTIME" \
-    DBUS_SESSION_BUS_ADDRESS="$TARGET_BUS" \
     "$@"
+}
+
+run_gsettings() {
+  if [[ -S "$TARGET_RUNTIME/bus" ]]; then
+    runuser -u "$TARGET_USER" -- env \
+      HOME="$TARGET_HOME" \
+      USER="$TARGET_USER" \
+      LOGNAME="$TARGET_USER" \
+      XDG_RUNTIME_DIR="$TARGET_RUNTIME" \
+      DBUS_SESSION_BUS_ADDRESS="$TARGET_BUS" \
+      gsettings "$@"
+  else
+    run_as_user dbus-run-session -- gsettings "$@"
+  fi
 }
 
 install_icons() {
@@ -34,33 +46,29 @@ install_icons() {
   command -v git >/dev/null 2>&1 || dnf install -y git
 
   tmp_dir="$(mktemp -d)"
-  trap 'rm -rf -- "$tmp_dir"' RETURN
 
   echo "Instalando tema de ícones LinuxMidnight para $TARGET_USER..."
   git clone --depth=1 "$repo" "$tmp_dir/LinuxMidnight-icon-theme"
   chmod -R a+rX "$tmp_dir/LinuxMidnight-icon-theme"
   run_as_user bash "$tmp_dir/LinuxMidnight-icon-theme/install.sh"
 
-  if run_as_user gsettings list-schemas | grep -Fxq org.gnome.desktop.interface; then
-    run_as_user gsettings set org.gnome.desktop.interface icon-theme 'LinuxMidnight'
+  if run_gsettings list-schemas | grep -Fxq org.gnome.desktop.interface; then
+    run_gsettings set org.gnome.desktop.interface icon-theme 'LinuxMidnight'
   fi
+
+  rm -rf -- "$tmp_dir"
 }
 
 configure_gnome() {
-  if [[ ! -S "$TARGET_RUNTIME/bus" ]]; then
-    echo "A sessão gráfica de $TARGET_USER não está ativa; não é possível aplicar gsettings agora." >&2
-    exit 1
-  fi
+  echo "Aplicando preferências pessoais do GNOME para $TARGET_USER..."
 
-  echo "Aplicando preferências pessoais do GNOME..."
+  run_gsettings set org.gnome.desktop.interface gtk-enable-primary-paste true
 
-  run_as_user gsettings set org.gnome.desktop.interface gtk-enable-primary-paste true
+  run_gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
+  run_gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout 0
 
-  run_as_user gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
-  run_as_user gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout 0
-
-  run_as_user gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'suspend'
-  run_as_user gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout 1800
+  run_gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'suspend'
+  run_gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout 1800
 }
 
 case "${1:-all}" in
