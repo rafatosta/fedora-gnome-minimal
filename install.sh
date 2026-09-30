@@ -82,6 +82,10 @@ install_flatpaks() {
   install_flatpak_manifest "$REPO_DIR/packages/flatpak/third-party-apps.txt"
 }
 
+install_nvidia() {
+  bash "$REPO_DIR/scripts/install-nvidia.sh"
+}
+
 show_help() {
   cat <<'EOF'
 Uso:
@@ -92,7 +96,8 @@ Ações:
   repos      Configura NVIDIA (Workstation), Chrome, VS Code e ChatGPT
   apps       Instala Chrome, VS Code e ChatGPT via RPM
   flatpaks   Instala Calculadora/Agenda GNOME e aplicativos conhecidos via Flathub
-  all        Instala GNOME mínimo + aplicativos de terceiros
+  nvidia     Instala o driver NVIDIA e prepara o MOK/Secure Boot
+  all        Instala GNOME mínimo + aplicativos de terceiros (não instala o driver NVIDIA)
   help       Exibe esta ajuda
 
 Sem argumentos, instala somente o GNOME mínimo.
@@ -106,6 +111,7 @@ case "$action" in
   repos) setup_repositories ;;
   apps) install_third_party_rpm ;;
   flatpaks) install_flatpaks ;;
+  nvidia) install_nvidia ;;
   all)
     install_gnome
     install_third_party_rpm
