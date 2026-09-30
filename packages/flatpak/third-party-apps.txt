@@ -1,0 +1,19 @@
+# Aplicativos de terceiros instalados pelo Flathub.
+app.drey.Dialect
+com.belmoussaoui.Obfuscate
+com.boxy_svg.BoxySVG
+com.github.tchx84.Flatseal
+com.mattjakeman.ExtensionManager
+com.rtosta.zapzap
+com.spotify.Client
+io.github.giantpinkrobots.varia
+org.desktop_plus.desktop-plus
+net.nokyan.Resources
+org.gaphor.Gaphor
+org.onlyoffice.desktopeditors
+org.videolan.VLC
+org.virt_manager.virt-manager
+page.tesk.Refine
+org.flatpak.Builder
+org.gnome.gitlab.somas.Apostrophe
+com.valvesoftware.Steam
